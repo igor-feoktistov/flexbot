@@ -1,0 +1,9 @@
+if [[ $DISTRO_NAME = "centos" || $DISTRO_NAME = "rhel" || $DISTRO_NAME = "centos7" || $DISTRO_NAME = "rhel7" ]]; then
+
+    DIB_DRACUT_ENABLED_MODULES+="
+- name: network
+- name: iscsi
+- name: multipath
+    "
+    export DIB_DRACUT_ENABLED_MODULES
+fi

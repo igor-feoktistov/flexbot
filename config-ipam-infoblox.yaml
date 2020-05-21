@@ -1,0 +1,46 @@
+ipam:
+    provider: Infoblox
+    ibCredentials:
+        host: ib.example.com
+        user: admin
+        password: secret
+        wapiVersion: "2.5"
+        dnsView: Internal
+        networkView: default
+    dnsZone: example.com
+compute:
+    ucsmCredentials:
+        host: ucsm.example.com
+        user: admin
+        password: secret
+    spOrg: org-root/org-Kubernetes
+    spTemplate: org-root/org-Kubernetes/ls-K8S-SubProd-01
+    bladeSpec:
+        model: UCSB-B200-M4
+        numOfCpus: "2"
+        numOfCores: "36"
+        totalMemory: "262144-393216"
+storage:
+    cdotCredentials:
+        host: svm.example.com
+        user: vsadmin
+        password: secret
+    bootLun:
+        size: 20
+    dataLun:
+        size: 50
+network:
+    node:
+      - name: eth2
+        subnet: 192.168.1.0/24
+        gateway: 192.168.1.1
+        dnsServer1: 192.168.1.10
+        dnsDomain: example.com
+    iscsiInitiator:
+      - name: iscsi0
+        subnet: 192.168.2.0/24
+      - name: iscsi1
+        subnet: 192.168.3.0/24
+cloudArgs:
+    cloud_user: cloud-user
+    ssh_pub_key: "ssh-rsa AAAAB3NzaC1yc2EAAAAxxxxxxxxxxxxxxxxxxxxxxxxxx"

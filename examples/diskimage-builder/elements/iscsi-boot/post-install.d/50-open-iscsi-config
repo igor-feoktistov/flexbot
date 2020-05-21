@@ -1,0 +1,45 @@
+#!/bin/bash
+
+if [ ${DIB_DEBUG_TRACE:-0} -gt 0 ]; then
+    set -x
+fi
+
+set -eu
+set -o pipefail
+
+if [[ $DISTRO_NAME = "ubuntu" || $DISTRO_NAME = "debian" ]]; then
+    echo "ISCSI_AUTO=true" > /etc/iscsi/iscsi.initramfs
+    update-initramfs -u
+fi
+cat <<EOF > /etc/multipath.conf
+defaults {
+    find_multipaths		yes
+    user_friendly_names		no
+    no_path_retry		queue
+    queue_without_daemon	no
+    flush_on_last_del		yes
+    max_fds			max
+    dev_loss_tmo		infinity
+    fast_io_fail_tmo		5
+}
+blacklist {
+    devnode	"^hd[a-z]"
+    devnode	"^(ram|raw|loop|fd|md|dm-|sr|scd|st)[0-9]*"
+    devnode	"^cciss.*"
+}
+devices {
+    device {
+	vendor			"NETAPP"
+	product			"LUN"
+	path_grouping_policy	group_by_prio
+	prio			"alua"
+	path_checker		tur
+	failback		immediate
+	path_selector		"service-time 0"
+	hardware_handler	"1 alua"
+	rr_weight		uniform
+	rr_min_io		1000
+    }
+}
+EOF
+cp -f /etc/multipath.conf /etc/cloud/templates/multipath.conf.tmpl

@@ -1,0 +1,13 @@
+#!/bin/bash
+
+if [ ${DIB_DEBUG_TRACE:-0} -gt 0 ]; then
+    set -x
+fi
+
+set -eu
+set -o pipefail
+
+if [[ $DISTRO_NAME = "centos" || $DISTRO_NAME = "rhel" || $DISTRO_NAME = "centos7" || $DISTRO_NAME = "rhel7" ]]; then
+    sed -i -E 's/(GRUB_CMDLINE_LINUX_DEFAULT=")(.+)(")/\1\2 rd.iscsi.firmware rd.iscsi.ibft bootdev=ibft0 mpath"/' /etc/default/grub
+    grub2-mkconfig -o /boot/grub2/grub.cfg
+fi

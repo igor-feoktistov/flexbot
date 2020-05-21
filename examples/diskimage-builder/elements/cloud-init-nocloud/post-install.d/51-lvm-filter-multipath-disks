@@ -1,0 +1,13 @@
+#!/bin/bash
+
+if [ ${DIB_DEBUG_TRACE:-1} -gt 0 ]; then
+    set -x
+fi
+set -eu
+set -o pipefail
+
+if [[ $DISTRO_NAME = "centos" || $DISTRO_NAME = "rhel" ]]; then
+    if [[ -f "/etc/lvm/lvm.conf" ]]; then
+	sed -ie '/^\([ 	]*# This configuration option has an automatic default value.\)$/{$!{N;s/^\([ 	]*# This configuration option has an automatic default value.\n\)\([ 	]*\)\(# filter = \[ "a|\.\*|" \]\)$/\1\2\3\n\2filter = \[ \"a\|\/dev\/mapper\/\.\*\|\", \"r\|\.\*\|\" \]/;ty;P;D;:y}}' /etc/lvm/lvm.conf
+    fi
+fi
