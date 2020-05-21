@@ -61,7 +61,7 @@ ipam:
     provider: Infoblox
     # Credentials for Infoblox master
     ibCredentials:
-        host: 10.253.4.10
+        host: ib.example.com
         user: admin
         # if you choose to encrypt passwords, should start from "base64:" prefix
         password: secret
@@ -69,18 +69,18 @@ ipam:
         dnsView: Internal
         networkView: default
     # Compute node FQDN is <node name>.<dnsZone>
-    dnsZone: corp.fslab.ntap
+    dnsZone: example.com
 # UCS Service Profile is created from Service Profile Template (SPT)
 compute:
     # Credentials for UCSM
     ucsmCredentials:
-        host: ucsm99.mgmt.fslab.ntap
+        host: ucsm.example.com
         user: admin
         password: secret
     # UCS Service Profile (server) is to be created here
     spOrg: org-root/org-Kubernetes
     # Reference to Service Profile Template (SPT)
-    spTemplate: org-root/org-Kubernetes/ls-K8S-M3160-SPD-01
+    spTemplate: org-root/org-Kubernetes/ls-K8S-SubProd-01
     # Blade search is conducted by applying "AND" rule to all provided specs
     bladeSpec:
         # "dn" is optional, supports regexp
@@ -100,11 +100,11 @@ storage:
     # Credentials either for cDOT cluster or SVM
     # SVM (storage virtual machine) is highly recommended
     cdotCredentials:
-        host: svmdurlabnks03spd.corp.fslab.ntap
+        host: svm.example.com
         user: vsadmin
         password: secret
     # not required if SVM is in cdotCredentials
-    #svmName: svmdurlabnks03spd
+    #svmName: svmlabk8s03spd
     # Boot LUN
     bootLun:
         # boot LUN size in GB
@@ -125,36 +125,36 @@ network:
         # name should match respective vNIC name in SPT
       - name: eth2
         # Supply IP here only for Internal provider
-        ip: 10.253.20.52
+        ip: 192.168.1.52
         # Supply FQDN here only for Internal provider
-        fqdn: phyk8s01.corp.fslab.ntap
+        fqdn: k8s-node1.example.com
         # IPAM allocates IP for node interface
-        subnet: 10.253.20.0/24
-        gateway: 10.253.20.1
+        subnet: 192.168.1.0/24
+        gateway: 192.168.1.1
         # arguments for node resolver configuration
-        dnsServer1: 10.253.4.10
+        dnsServer1: 192.168.1.10
         # "dnsServer2" is optional
-        dnsServer2: 10.253.4.11
-        dnsDomain: corp.fslab.ntap
+        dnsServer2: 192.168.2.10
+        dnsDomain: example.com
     # iSCSI initiator network interfaces (list)
     # Minimum one interface required, two is highly recommended
     iscsiInitiator:
         # name should match respective iSCSI vNIC name in SPT
       - name: iscsi0
         # Supply IP here only for Internal provider
-        ip: 10.253.18.80
+        ip: 192.168.2.80
         # Supply FQDN here only for Internal provider
-        fqdn: phyk8s01-i1.corp.fslab.ntap
+        fqdn: k8s-node1-i1.example.com
         # IPAM allocates IP for iSCSI interface
-        subnet: 10.253.18.0/24
+        subnet: 192.168.2.0/24
         # name should match respective iSCSI vNIC name in SPT
       - name: iscsi1
         # Supply IP here only for Internal provider
-        ip: 10.253.19.78
+        ip: 192.168.3.78
         # Supply FQDN here only for Internal provider
-        fqdn: phyk8s01-i2.corp.fslab.ntap
+        fqdn: k8s-node1-i2.example.com
         # IPAM allocates IP for iSCSI interface
-        subnet: 10.253.19.0/24
+        subnet: 192.168.3.0/24
 cloudArgs:
     # optional user defined key/value pairs to address in cloud-init templates
     cloud_user: cloud-user
@@ -172,12 +172,12 @@ status: success
 server:
     ipam:
         provider: Infoblox
-        dnsZone: corp.fslab.ntap
+        dnsZone: example.com
     compute:
-        hostName: phygymk8s01-lab
+        hostName: k8s-node1
         spOrg: org-root/org-Kubernetes
-        spTemplate: org-root/org-Kubernetes/ls-K8S-M3160-SPD-01
-        spDn: org-root/org-Kubernetes/ls-phygymk8s01-lab
+        spTemplate: org-root/org-Kubernetes/ls-K8S-SubProd-01
+        spDn: org-root/org-Kubernetes/ls-k8s-node1
         bladeSpec:
             dn: sys/chassis-1/blade-5
             model: UCSB-B200-M4
@@ -185,21 +185,21 @@ server:
             numOfCores: 36
             totalMemory: 65536
     storage:
-        svmName: svmdurlabnks03spd
+        svmName: svmlabk8s03spd
         imageRepoName: image_repo
-        volumeName: phygymk8s01_lab_iboot
-        igroupName: phygymk8s01_lab_iboot
+        volumeName: k8s_node1_iboot
+        igroupName: k8s_node1_iboot
         bootLun:
-            name: phygymk8s01_lab_iboot
+            name: k8s_node1_iboot
             size: 20
             osImage:
                 name: ubuntu-18.04-iboot
         dataLun:
-            name: phygymk8s01_lab_data
+            name: k8s_node1_data
             id: 1
             size: 50
         seedLun:
-            name: phygymk8s01_lab_seed
+            name: k8s_node1_seed
             id: 2
             seedTemplate:
                 location: templates/ubuntu-18.04-cloud-init.template
@@ -207,42 +207,42 @@ server:
         node:
           - name: eth2
             macaddr: 00:25:B5:99:04:BF
-            ip: 10.253.20.52
-            fqdn: phyk8s01.corp.fslab.ntap
-            subnet: 10.253.20.0/24
+            ip: 192.168.1.52
+            fqdn: k8s-node1.example.com
+            subnet: 192.168.1.0/24
             netlen: "24"
-            gateway: 10.253.20.1
-            dnsServer1: 10.253.4.10
-            dnsDomain: corp.fslab.ntap
+            gateway: 192.168.1.1
+            dnsServer1: 192.168.1.10
+            dnsDomain: example.com
         iscsiInitiator:
           - name: iscsi0
-            ip: 10.253.18.80
-            fqdn: phyk8s01-i1.corp.fslab.ntap
-            subnet: 10.253.18.0/24
+            ip: 192.168.2.80
+            fqdn: k8s-node1-i1.example.com
+            subnet: 192.168.2.0/24
             netlen: "24"
             gateway: 0.0.0.0
             dnsServer1: 0.0.0.0
             dnsServer2: 0.0.0.0
-            initiatorName: iqn.2005-02.com.open-iscsi:phygymk8s01-lab.1
+            initiatorName: iqn.2005-02.com.open-iscsi:k8s-node1.1
             iscsiTarget:
                 nodeName: iqn.1992-08.com.netapp:sn.cfe29c87000211eabab300a098ae4dc7:vs.32
                 interfaces:
-                  - 10.253.18.58
-                  - 10.253.18.57
+                  - 192.168.2.58
+                  - 192.168.2.57
           - name: iscsi1
-            ip: 10.253.19.78
-            fqdn: phyk8s01-i2.corp.fslab.ntap
-            subnet: 10.253.19.0/24
+            ip: 192.168.3.78
+            fqdn: k8s-node1-i2.example.com
+            subnet: 192.168.3.0/24
             netlen: "24"
             gateway: 0.0.0.0
             dnsServer1: 0.0.0.0
             dnsServer2: 0.0.0.0
-            initiatorName: iqn.2005-02.com.open-iscsi:phygymk8s01-lab.2
+            initiatorName: iqn.2005-02.com.open-iscsi:k8s-node1.2
             iscsiTarget:
                 nodeName: iqn.1992-08.com.netapp:sn.cfe29c87000211eabab300a098ae4dc7:vs.32
                 interfaces:
-                  - 10.253.19.58
-                  - 10.253.19.57
+                  - 192.168.3.58
+                  - 192.168.3.57
 ```
 
 ## cDOT Storage Requirements
