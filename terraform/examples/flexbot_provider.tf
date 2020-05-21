@@ -1,5 +1,9 @@
 provider "flexbot" {
 
+  # Password phrase to decrypt passwords in credentials (if encrypted)
+  # Machine ID is used by default
+  pass_phrase = "secret"
+
   # IPAM is implemented via pluggable providers.
   # Only Infoblox and Internal providers are supported at this time.
   # Internal provider expects you to supply "ip" and "fqdn" in network configurations.
