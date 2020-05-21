@@ -266,19 +266,19 @@ See below screenshots with configuration details.
 ###iSCSI vNIC's
 
 <p align="center">
-    <img src="https://dev.azure.com/netapp-custone/aa53cd5a-88cf-47a6-9ee3-55c98ffaa896/_apis/git/repositories/484a3d58-24f2-458f-91a8-ff2cc42f7bc7/items?path=%2Fdocs%2Fimages%2FSPT-details1.png&versionDescriptor%5BversionOptions%5D=0&versionDescriptor%5BversionType%5D=0&versionDescriptor%5Bversion%5D=master&resolveLfs=true&%24format=octetStream&api-version=5.0&download=true"
+    <img src="https://github.com/igor-feoktistov/flexbot/blob/master/docs/images/SPT-details1.png">
 </p>
 
 ###Boot Order
 
 <p align="center">
-    <img src="https://dev.azure.com/netapp-custone/aa53cd5a-88cf-47a6-9ee3-55c98ffaa896/_apis/git/repositories/484a3d58-24f2-458f-91a8-ff2cc42f7bc7/items?path=%2Fdocs%2Fimages%2FSPT-details2.png&versionDescriptor%5BversionOptions%5D=0&versionDescriptor%5BversionType%5D=0&versionDescriptor%5Bversion%5D=master&resolveLfs=true&%24format=octetStream&api-version=5.0&download=true"
+    <img src="https://github.com/igor-feoktistov/flexbot/blob/master/docs/images/SPT-details2.png">
 </p>
 
 ###iSCSI Boot Parameters
 
 <p align="center">
-    <img src="https://dev.azure.com/netapp-custone/aa53cd5a-88cf-47a6-9ee3-55c98ffaa896/_apis/git/repositories/484a3d58-24f2-458f-91a8-ff2cc42f7bc7/items?path=%2Fdocs%2Fimages%2FSPT-details3.png&versionDescriptor%5BversionOptions%5D=0&versionDescriptor%5BversionType%5D=0&versionDescriptor%5Bversion%5D=master&resolveLfs=true&%24format=octetStream&api-version=5.0&download=true"
+    <img src="https://github.com/igor-feoktistov/flexbot/blob/master/docs/images/SPT-details3.png">
 </p>
 
 ## Images
