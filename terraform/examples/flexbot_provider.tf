@@ -22,7 +22,7 @@ provider "flexbot" {
     dns_zone = "example.com"
   }
 
-  # UCS Service Profile is created from Service Profile Template (SPT)
+  # UCS compute
   compute {
     # Credentials for UCSM
     credentials {
