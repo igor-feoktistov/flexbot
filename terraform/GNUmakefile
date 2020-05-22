@@ -1,7 +1,7 @@
 DISTFILE=terraform-provider-flexbot
 VERSION=1.1.6
 
-default: clean build
+default: build
 
 build:
 	@go build -o $(DISTFILE)_v$(VERSION) .
