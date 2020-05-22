@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strings"
 	"time"
+	"sync"
 
 	"flexbot/pkg/config"
 	"flexbot/pkg/ipam"
@@ -14,6 +15,9 @@ import (
 	"github.com/denisbrodbeck/machineid"
 	"github.com/hashicorp/terraform/helper/schema"
 )
+
+var setInputMutex = sync.Mutex{}
+var setOutputMutex = sync.Mutex{}
 
 func resourceFlexbotServer() *schema.Resource {
 	return &schema.Resource{
@@ -653,6 +657,8 @@ func resourceDeleteServer(d *schema.ResourceData, meta interface{}) (err error) 
 func setFlexbotInput(d *schema.ResourceData, p *schema.ResourceData) (*config.NodeConfig, error) {
 	var nodeConfig config.NodeConfig
 	var err error
+	setInputMutex.Lock()
+        defer setInputMutex.Unlock()
 	p_ipam := p.Get("ipam").([]interface{})[0].(map[string]interface{})
 	nodeConfig.Ipam.Provider = p_ipam["provider"].(string)
 	nodeConfig.Ipam.DnsZone = p_ipam["dns_zone"].(string)
@@ -739,6 +745,8 @@ func setFlexbotInput(d *schema.ResourceData, p *schema.ResourceData) (*config.No
 }
 
 func setFlexbotOutput(d *schema.ResourceData, nodeConfig *config.NodeConfig) {
+	setOutputMutex.Lock()
+        defer setOutputMutex.Unlock()
 	compute := d.Get("compute").([]interface{})[0].(map[string]interface{})
 	compute["sp_dn"] = nodeConfig.Compute.SpDn
 	if len(compute["blade_spec"].([]interface{})) > 0 {
