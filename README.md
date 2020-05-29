@@ -2,6 +2,8 @@
 
 Compared to other bare-metal tools it does not require any additional infrastructure like PXE/DHCP servers.
 
+Also available as a terraform provider (see [terraform](./terraform)).
+
 # Documentation
 
 ## Usage
