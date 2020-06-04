@@ -254,12 +254,12 @@ server:
 
 ## cDOT Storage Requirements
 
-####iSCSI LIF's
+#### iSCSI LIF's
 Minimal one iSCSI LIF is required. Two or four LIF's in two VLAN ID's are highly recommended.
 Non-routed iSCSI is highly recommeneded, meaning interfaces for host iSCSI initiator and SVM
 iSCSI LIF's should belong to the same VLAN's.
 
-####NAS LIF's
+#### NAS LIF's
 At least one NFS LIF is required for "uploadImage" functionality.
 Once all images are uploaded, NAS LIF can be disabled or removed.
 Server build functionality does not require this LIF.
