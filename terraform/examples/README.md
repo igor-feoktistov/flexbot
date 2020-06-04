@@ -11,7 +11,7 @@ Make sure to update respective `.tfvars` files with your own infrastructure conf
 
 ### Note
 You can easily adapt the examples with IPAM provider via Terraform.
-In `flexbot` provider confguration use the following `ipam` definition:
+In `flexbot` provider confguration use the following `ipam` definition to disable built-in provider:
 ```
   ipam {
     provider = "Internal"
