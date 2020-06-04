@@ -9,6 +9,7 @@ require (
 	github.com/igor-feoktistov/go-ontap-sdk v0.0.0-20200520221657-0c35d124cb7e
 	github.com/igor-feoktistov/go-ucsm-sdk v0.0.0-20200520224553-145dfd305473
 	github.com/infobloxopen/infoblox-go-client v1.1.0
+	github.com/kdomanski/iso9660 v0.0.0-20200519215215-812ccb67a0ab
 	github.com/onsi/ginkgo v1.12.2 // indirect
 	github.com/rasky/go-xdr v0.0.0-20170124162913-1a41d1a06c93 // indirect
 	github.com/vmware/go-nfs-client v0.0.0-20190605212624-d43b92724c1b // indirect

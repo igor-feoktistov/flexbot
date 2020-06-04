@@ -12,7 +12,7 @@ import (
 	"strings"
 	"text/template"
 
-	"flexbot/pkg/crypt"
+	"flexbot/pkg/util/crypt"
 	"github.com/igor-feoktistov/go-ucsm-sdk/util"
 	"gopkg.in/yaml.v3"
 )

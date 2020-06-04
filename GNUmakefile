@@ -1,6 +1,7 @@
 GOFMT_FILES?=$$(find . -name '*.go' |grep -v vendor)
 PKG_NAME=flexbot
-PKG_VERSION=1.1.6
+PKG_VERSION=1.1.7
+OSFLAG=$(shell go env GOHOSTOS)
 
 default: build
 
@@ -20,7 +21,9 @@ fmt:
 	gofmt -w $(GOFMT_FILES)
 
 dist:
-	GOOS=darwin GOARCH=amd64 go build -o ./bin/$(PKG_NAME)-v$(PKG_VERSION).darwin -v ./cmd/flexbot/...
-	GOOS=linux GOARCH=amd64 go build -o ./bin/$(PKG_NAME)-v$(PKG_VERSION).linux -v ./cmd/flexbot/...
+	GOOS=darwin GOARCH=amd64 go build -o bin/$(PKG_NAME)-v$(PKG_VERSION).darwin -v ./cmd/flexbot/...
+	hack/upx-${OSFLAG} bin/$(PKG_NAME)-v$(PKG_VERSION).darwin
+	GOOS=linux GOARCH=amd64 go build -o bin/$(PKG_NAME)-v$(PKG_VERSION).linux -v ./cmd/flexbot/...
+	hack/upx-${OSFLAG} bin/$(PKG_NAME)-v$(PKG_VERSION).linux
 
 .PHONY: build vet fmt dist

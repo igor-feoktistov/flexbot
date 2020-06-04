@@ -2,11 +2,13 @@ provider "flexbot" {
 
   # Password phrase to decrypt passwords in credentials (if encrypted)
   # Machine ID is used by default
+  # Use 'flexbot --op=encryptString [--passphrase=<password phrase>]' CLI to generate encrypted passwords values
   pass_phrase = "secret"
 
   # IPAM is implemented via pluggable providers.
-  # Only Infoblox and Internal providers are supported at this time.
-  # Internal provider expects you to supply "ip" and "fqdn" in network configurations.
+  # Only "Infoblox" and "Internal" providers are supported at this time.
+  # "Internal" provider expects you to supply "ip" and "fqdn" in network configurations.
+  # Define 'provider = "Internal"' if you manage IPAM via terraform provider.
   ipam {
     provider = "Infoblox"
     # Credentials for Infoblox master

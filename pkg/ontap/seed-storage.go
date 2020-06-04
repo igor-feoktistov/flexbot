@@ -1,27 +1,23 @@
 package ontap
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"text/template"
 
 	"flexbot/pkg/config"
-	diskfs "flexbot/pkg/diskfs"
-	"flexbot/pkg/diskfs/disk"
-	"flexbot/pkg/diskfs/filesystem"
-	"flexbot/pkg/diskfs/filesystem/iso9660"
 	"github.com/igor-feoktistov/go-ontap-sdk/ontap"
 	"github.com/igor-feoktistov/go-ontap-sdk/util"
+	"github.com/kdomanski/iso9660"
 )
 
 func CreateSeedStorage(nodeConfig *config.NodeConfig) (err error) {
-	var diskSize int64 = 1 * 1024 * 1024
-	var isoDisk *disk.Disk
-	seedImage := nodeConfig.Compute.HostName + "-seed.iso"
 	var fileReader io.Reader
 	if strings.HasPrefix(nodeConfig.Storage.SeedLun.SeedTemplate.Location, "http://") || strings.HasPrefix(nodeConfig.Storage.SeedLun.SeedTemplate.Location, "https://") {
 		var httpResponse *http.Response
@@ -51,52 +47,35 @@ func CreateSeedStorage(nodeConfig *config.NodeConfig) (err error) {
 		err = fmt.Errorf("CreateSeedStorage: failure to read cloud-init template %s: %s", nodeConfig.Storage.SeedLun.SeedTemplate.Location, err)
 		return
 	}
-	os.Remove(seedImage)
-	if isoDisk, err = diskfs.Create(seedImage, diskSize, diskfs.Raw); err != nil {
-		err = fmt.Errorf("CreateSeedStorage: failure to create ISO image: %s", err)
+	var isoWriter *iso9660.ImageWriter
+	if isoWriter, err = iso9660.NewWriter(); err != nil {
+		err = fmt.Errorf("CreateSeedStorage: failed to create ISO writer: %v", err)
 		return
 	}
-	isoDisk.LogicalBlocksize = 2048
-	fsSpec := disk.FilesystemSpec{Partition: 0, FSType: filesystem.TypeISO9660, VolumeLabel: "cidata"}
-	var fs filesystem.FileSystem
-	if fs, err = isoDisk.CreateFilesystem(fsSpec); err != nil {
-		err = fmt.Errorf("CreateSeedStorage: failure to crete ISO9660 filesystem: %s", err)
-		return
-	}
+	defer isoWriter.Cleanup()
 	for _, cloudInitData := range []string{"meta-data", "network-config", "user-data"} {
-		var cloudInitFile filesystem.File
+		var cloudInitBuf bytes.Buffer
 		var t *template.Template
 		if t, err = template.New(cloudInitData).Parse(string(b)); err != nil {
 			err = fmt.Errorf("CreateSeedStorage: failure to parse cloud-init template: %s", err)
 			return
 		}
-		if cloudInitFile, err = fs.OpenFile(cloudInitData, os.O_CREATE|os.O_RDWR); err != nil {
-			err = fmt.Errorf("CreateSeedStorage: failure to open file %s: %s", cloudInitData, err)
-			return
-		}
-		if err = t.Execute(cloudInitFile, nodeConfig); err != nil {
+		if err = t.Execute(&cloudInitBuf, nodeConfig); err != nil {
 			err = fmt.Errorf("CreateSeedStorage: template failure for %s: %s", cloudInitData, err)
 			return
 		}
-	}
-	if iso, ok := fs.(*iso9660.FileSystem); ok {
-		if err = iso.Finalize(iso9660.FinalizeOptions{}); err != nil {
-			err = fmt.Errorf("CreateSeedStorage: iso.Finalize() failure: %s", err)
+		cloudInitReader := strings.NewReader(cloudInitBuf.String())
+		if err = isoWriter.AddFile(cloudInitReader, cloudInitData); err != nil {
+			err = fmt.Errorf("CreateSeedStorage: failed to add %s file to ISO: %v", cloudInitData, err)
 			return
 		}
-	} else {
-		err = fmt.Errorf("CreateSeedStorage: not an iso9660 filesystem")
+	}
+	wabuf := newWriteAtBuffer(nil)
+	if err = isoWriter.WriteTo(wabuf, "cidata"); err != nil {
+		err = fmt.Errorf("CreateSeedStorage: failed to write ISO image: %v", err)
 		return
 	}
-	defer os.Remove(seedImage)
-	var file *os.File
-	if file, err = os.Open(seedImage); err == nil {
-		fileReader = file
-		defer file.Close()
-	} else {
-		err = fmt.Errorf("CreateSeedStorage: cloud not open file %s: %s", seedImage, err)
-		return
-	}
+	isoReader := bytes.NewReader(wabuf.Bytes())
 	var c *ontap.Client
 	var response *ontap.SingleResultResponse
 	if c, err = CreateCdotClient(nodeConfig); err != nil {
@@ -136,7 +115,7 @@ func CreateSeedStorage(nodeConfig *config.NodeConfig) (err error) {
 			return
 		}
 	}
-	if _, err = util.UploadFileAPI(c, nodeConfig.Storage.VolumeName, "/seed", fileReader); err != nil {
+	if _, err = util.UploadFileAPI(c, nodeConfig.Storage.VolumeName, "/seed", isoReader); err != nil {
 		err = fmt.Errorf("CreateSeedStorage: UploadFileAPI() failure: %s", err)
 		return
 	}
@@ -182,4 +161,40 @@ func CreateSeedStoragePreflight(nodeConfig *config.NodeConfig) (err error) {
 		}
 	}
 	return
+}
+
+// a stripped down version of the WriteAtBuffer from
+// https://github.com/aws/aws-sdk-go/blob/master/aws/types.go and
+// https://github.com/LINBIT/virter/blob/master/internal/virter/writeatbuffer.go
+
+type writeAtBuffer struct {
+	buf []byte
+	m   sync.Mutex
+}
+
+func newWriteAtBuffer(buf []byte) *writeAtBuffer {
+	return &writeAtBuffer{buf: buf}
+}
+
+func (b *writeAtBuffer) WriteAt(p []byte, pos int64) (n int, err error) {
+	pLen := len(p)
+	expLen := pos + int64(pLen)
+	b.m.Lock()
+	defer b.m.Unlock()
+	if int64(len(b.buf)) < expLen {
+		if int64(cap(b.buf)) < expLen {
+			newBuf := make([]byte, expLen)
+			copy(newBuf, b.buf)
+			b.buf = newBuf
+		}
+		b.buf = b.buf[:expLen]
+	}
+	copy(b.buf[pos:], p)
+	return pLen, nil
+}
+
+func (b *writeAtBuffer) Bytes() []byte {
+	b.m.Lock()
+	defer b.m.Unlock()
+	return b.buf
 }

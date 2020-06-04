@@ -5,8 +5,8 @@ import (
 	"net"
 	"regexp"
 	"strings"
-	"time"
 	"sync"
+	"time"
 
 	"flexbot/pkg/config"
 	"flexbot/pkg/ipam"
@@ -658,7 +658,7 @@ func setFlexbotInput(d *schema.ResourceData, p *schema.ResourceData) (*config.No
 	var nodeConfig config.NodeConfig
 	var err error
 	setInputMutex.Lock()
-        defer setInputMutex.Unlock()
+	defer setInputMutex.Unlock()
 	p_ipam := p.Get("ipam").([]interface{})[0].(map[string]interface{})
 	nodeConfig.Ipam.Provider = p_ipam["provider"].(string)
 	nodeConfig.Ipam.DnsZone = p_ipam["dns_zone"].(string)
@@ -740,13 +740,15 @@ func setFlexbotInput(d *schema.ResourceData, p *schema.ResourceData) (*config.No
 			return nil, err
 		}
 	}
-	err = config.SetDefaults(&nodeConfig, compute["hostname"].(string), bootLun["os_image"].(string), seedLun["seed_template"].(string), passPhrase)
+	if err = config.SetDefaults(&nodeConfig, compute["hostname"].(string), bootLun["os_image"].(string), seedLun["seed_template"].(string), passPhrase); err != nil {
+		err = fmt.Errorf("SetDefaults() failure: %s", err)
+	}
 	return &nodeConfig, err
 }
 
 func setFlexbotOutput(d *schema.ResourceData, nodeConfig *config.NodeConfig) {
 	setOutputMutex.Lock()
-        defer setOutputMutex.Unlock()
+	defer setOutputMutex.Unlock()
 	compute := d.Get("compute").([]interface{})[0].(map[string]interface{})
 	compute["sp_dn"] = nodeConfig.Compute.SpDn
 	if len(compute["blade_spec"].([]interface{})) > 0 {

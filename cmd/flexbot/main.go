@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -12,12 +13,13 @@ import (
 	"flexbot/pkg/ipam"
 	"flexbot/pkg/ontap"
 	"flexbot/pkg/ucsm"
+	"flexbot/pkg/util/crypt"
 	"github.com/denisbrodbeck/machineid"
 	"gopkg.in/yaml.v3"
 )
 
 const (
-	version = "1.1.6"
+	version = "1.1.7"
 )
 
 type NodeResult struct {
@@ -42,8 +44,9 @@ func Usage() {
 	fmt.Printf("flexbot --config=<config file path> --op=stopServer --host=<host node name>\n\n")
 	fmt.Printf("flexbot --config=<config file path> --op=startServer --host=<host node name>\n\n")
 	fmt.Printf("flexbot --config=<config file path> --op=deprovisionServer --host=<host node name>\n\n")
-	fmt.Printf("flexbot --config=<config file path> --op=decryptConfig\n\n")
-	fmt.Printf("flexbot --config=<config file path> --op=encryptConfig\n\n")
+	fmt.Printf("flexbot --config=<config file path> --op=decryptConfig [--passphrase=<password phrase>]\n\n")
+	fmt.Printf("flexbot --config=<config file path> --op=encryptConfig [--passphrase=<password phrase>]\n\n")
+	fmt.Printf("flexbot --op=encryptString --sourceString <string to encrypt> [--passphrase=<password phrase>]\n\n")
 	fmt.Printf("flexbot --config=<config file path> --op=uploadImage --image=<image name> --imagePath=<image path>\n\n")
 	fmt.Printf("flexbot --config=<config file path> --op=deleteImage --image=<image name>\n\n")
 	fmt.Printf("flexbot --config=<config file path> --op=listImages\n\n")
@@ -328,6 +331,16 @@ func DumpNodeConfig(configDest string, nodeConfig *config.NodeConfig, format str
 	}
 }
 
+func EncryptString(srcString string, passPhrase string) (encrypted string, err error) {
+	var b []byte
+	if b, err = crypt.Encrypt([]byte(srcString), passPhrase); err != nil {
+		err = fmt.Errorf("EncryptString: Encrypt() failure: %s", err)
+	} else {
+		encrypted = "base64:" + base64.StdEncoding.EncodeToString(b)
+	}
+	return
+}
+
 func main() {
 	var nodeConfig config.NodeConfig
 	var err error
@@ -337,8 +350,9 @@ func main() {
 	optImagePath := flag.String("imagePath", "", "a path to boot image (prefix can be either file:// or http(s)://)")
 	optTemplate := flag.String("template", "", "a path to cloud-init template (prefix can be either file:// or http(s)://)")
 	optPassPhrase := flag.String("passphrase", "", "passphrase to encrypt/decrypt passwords in configuration (default is machineid)")
+	optSourceString := flag.String("sourceString", "", "source string to encrypt")
 	optNodeConfig := flag.String("config", "STDIN", "a path to configuration file, STDIN, or argument value in JSON")
-	optOp := flag.String("op", "", "operation: \n\tprovisionServer\n\tdeprovisionServer\n\tstopServer\n\tstartServer\n\tuploadImage\n\tlistImages\n\tencryptConfig\n\tdecryptConfig")
+	optOp := flag.String("op", "", "operation: \n\tprovisionServer\n\tdeprovisionServer\n\tstopServer\n\tstartServer\n\tuploadImage\n\tlistImages\n\tencryptConfig\n\tdecryptConfig\n\tencryptString")
 	optDumpResult := flag.String("dumpResult", "STDOUT", "dump result: file path or STDOUT")
 	optEncodingFormat := flag.String("encodingFormat", "yaml", "supported encoding formats: json, yaml")
 	optVersion := flag.Bool("version", false, "flexbot version")
@@ -348,11 +362,6 @@ func main() {
 		goARCH := runtime.GOARCH
 		fmt.Printf("flexbot version %s %s/%s\n", version, goOS, goARCH)
 		return
-	} else {
-		if *optOp == "" {
-			Usage()
-			return
-		}
 	}
 	if *optPassPhrase == "" {
 		if passPhrase, err = machineid.ID(); err != nil {
@@ -361,8 +370,17 @@ func main() {
 	} else {
 		passPhrase = *optPassPhrase
 	}
-	if err = config.ParseNodeConfig(*optNodeConfig, &nodeConfig); err != nil {
-		panic(err.Error())
+	if *optOp == "provisionServer" ||
+		*optOp == "deprovisionServer" ||
+		*optOp == "stopServer" ||
+		*optOp == "startServer" ||
+		*optOp == "uploadImage" ||
+		*optOp == "listImages" ||
+		*optOp == "encryptConfig" ||
+		*optOp == "decryptConfig" {
+		if err = config.ParseNodeConfig(*optNodeConfig, &nodeConfig); err != nil {
+			panic(err.Error())
+		}
 	}
 	switch *optOp {
 	case "provisionServer":
@@ -425,6 +443,7 @@ func main() {
 		}
 		if err = config.SetDefaults(&nodeConfig, *optHostName, "", "", passPhrase); err != nil {
 			err = fmt.Errorf("SetDefaults() failure: %s", err)
+			fmt.Printf("%s\n\n", err.Error())
 		} else {
 			UploadImage(&nodeConfig, *optImageName, *optImagePath)
 		}
@@ -435,12 +454,14 @@ func main() {
 		}
 		if err = config.SetDefaults(&nodeConfig, *optHostName, "", "", passPhrase); err != nil {
 			err = fmt.Errorf("SetDefaults() failure: %s", err)
+			fmt.Printf("%s\n\n", err.Error())
 		} else {
 			DeleteImage(&nodeConfig, *optImageName)
 		}
 	case "listImages":
 		if err = config.SetDefaults(&nodeConfig, *optHostName, "", "", passPhrase); err != nil {
 			err = fmt.Errorf("SetDefaults() failure: %s", err)
+			fmt.Printf("%s\n\n", err.Error())
 		} else {
 			var images []string
 			images, err = ontap.GetRepoImages(&nodeConfig)
@@ -449,10 +470,22 @@ func main() {
 	case "encryptConfig":
 		if err = config.EncryptNodeConfig(&nodeConfig, passPhrase); err == nil {
 			DumpNodeConfig("STDOUT", &nodeConfig, *optEncodingFormat)
+		} else {
+			fmt.Printf("%s\n\n", err.Error())
 		}
 	case "decryptConfig":
 		if err = config.DecryptNodeConfig(&nodeConfig, passPhrase); err == nil {
 			DumpNodeConfig("STDOUT", &nodeConfig, *optEncodingFormat)
+		} else {
+			fmt.Printf("%s\n\n", err.Error())
+		}
+	case "encryptString":
+		var encrypted string
+		if encrypted, err = EncryptString(*optSourceString, passPhrase); err == nil {
+			fmt.Println(encrypted)
+		} else {
+			fmt.Printf("%s\n\n", err.Error())
+			Usage()
 		}
 	default:
 		Usage()

@@ -21,10 +21,13 @@ Also available as a terraform provider (see [terraform](./terraform)).
    ```flexbot --config=<config file path> --op=startServer --host=<host node name>```
 
  - Encrypt passwords in configuration:
-   ```flexbot --config=<config file path> --op=encryptConfig```
+   ```flexbot --config=<config file path> --op=encryptConfig [--passphrase=<password phrase>]```
+
+ - Encrypt string:
+   ```flexbot --op=encryptString [--passphrase=<password phrase>]```
 
  - Decrypt passwords in configuration:
-   ```flexbot --config=<config file path> --op=decryptConfig```
+   ```flexbot --config=<config file path> --op=decryptConfig [--passphrase=<password phrase>]```
 
  - Upload image into image repository:
    ```flexbot --config=<config file path> --op=uploadImage --image=<image name> --imagePath=<image path>```
@@ -43,13 +46,15 @@ Also available as a terraform provider (see [terraform](./terraform)).
   - host: `compute node name`
   - image: `boot image name`
   - imagePath: `a path to boot image (prefix can be either file:// or http(s)://)`
-  - op: `provisionServer, deprovisionServer, stopServer, startServer, uploadImage, listImages, encryptConfig, decryptConfig`
+  - op: `provisionServer, deprovisionServer, stopServer, startServer, uploadImage, listImages, encryptConfig, decryptConfig, encryptString`
   - passphrase: `passphrase to encrypt/decrypt passwords in configuration (default is machineid)`
   - template: `a path to cloud-init template (prefix can be either file:// or http(s)://)`
 
 ## Passwords Encryption
 
 Your host `machineid` is a default encryption key if you choose to encrypt passwords.
+
+You may also want to use `encryptString` operation to generate encrypted passwords values.
 
 ## Configuration
 
@@ -265,19 +270,19 @@ UCS Service Profile Template should be configured to support iSCSI boot.
 
 See below screenshots with configuration details.
 
-###iSCSI vNIC's
+### iSCSI vNIC's
 
 <p align="center">
     <img src="https://github.com/igor-feoktistov/flexbot/blob/master/docs/images/SPT-details1.png">
 </p>
 
-###Boot Order
+### Boot Order
 
 <p align="center">
     <img src="https://github.com/igor-feoktistov/flexbot/blob/master/docs/images/SPT-details2.png">
 </p>
 
-###iSCSI Boot Parameters
+### iSCSI Boot Parameters
 
 <p align="center">
     <img src="https://github.com/igor-feoktistov/flexbot/blob/master/docs/images/SPT-details3.png">
