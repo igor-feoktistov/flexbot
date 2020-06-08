@@ -2,6 +2,7 @@ package provider
 
 import (
 	"fmt"
+	"log"
 	"net"
 	"regexp"
 	"strings"
@@ -447,7 +448,7 @@ func resourceFlexbotServer() *schema.Resource {
 		Update: resourceUpdateServer,
 		Delete: resourceDeleteServer,
 		Importer: &schema.ResourceImporter{
-			State: schema.ImportStatePassthrough,
+			State: resourceImportServer,
 		},
 	}
 }
@@ -458,6 +459,7 @@ func resourceCreateServer(d *schema.ResourceData, meta interface{}) (err error) 
 	if nodeConfig, err = setFlexbotInput(d, p); err != nil {
 		return
 	}
+	log.Printf("[INFO] Creating Server %s", nodeConfig.Compute.HostName)
 	var serverExists bool
 	if serverExists, err = ucsm.DiscoverServer(nodeConfig); err != nil {
 		return
@@ -544,6 +546,7 @@ func resourceReadServer(d *schema.ResourceData, meta interface{}) (err error) {
 	if nodeConfig, err = setFlexbotInput(d, p); err != nil {
 		return
 	}
+	log.Printf("[INFO] Refreshing Server %s", nodeConfig.Compute.HostName)
 	var serverExists bool
 	if serverExists, err = ucsm.DiscoverServer(nodeConfig); err != nil {
 		return
@@ -575,12 +578,13 @@ func resourceUpdateServer(d *schema.ResourceData, meta interface{}) (err error) 
 	if nodeConfig, err = setFlexbotInput(d, p); err != nil {
 		return
 	}
+	log.Printf("[INFO] Updating Server %s", nodeConfig.Compute.HostName)
 	if d.HasChange("compute") && !d.IsNewResource() {
 		oldCompute, newCompute := d.GetChange("compute")
 		oldBladeSpec := (oldCompute.([]interface{})[0].(map[string]interface{}))["blade_spec"].([]interface{})[0].(map[string]interface{})
 		newBladeSpec := (newCompute.([]interface{})[0].(map[string]interface{}))["blade_spec"].([]interface{})[0].(map[string]interface{})
 		bladeSpecChange := false
-		for _, specItem := range []string{"model", "num_of_cpus", "num_of_cores", "total_memory"} {
+		for _, specItem := range []string{"dn", "model", "num_of_cpus", "num_of_cores", "total_memory"} {
 			if oldBladeSpec[specItem].(string) != newBladeSpec[specItem].(string) {
 				bladeSpecChange = true
 			}
@@ -609,6 +613,7 @@ func resourceDeleteServer(d *schema.ResourceData, meta interface{}) (err error) 
 	if nodeConfig, err = setFlexbotInput(d, p); err != nil {
 		return
 	}
+	log.Printf("[INFO] Deleting Server %s", nodeConfig.Compute.HostName)
 	compute := d.Get("compute").([]interface{})[0].(map[string]interface{})
 	var powerState string
 	if powerState, err = ucsm.GetServerPowerState(nodeConfig); err != nil {
@@ -652,6 +657,14 @@ func resourceDeleteServer(d *schema.ResourceData, meta interface{}) (err error) 
 		err = fmt.Errorf("resourceDeleteServer: %s", strings.Join(stepErrMsg, "\n"))
 	}
 	return
+}
+
+func resourceImportServer(d *schema.ResourceData, meta interface{}) ([]*schema.ResourceData, error) {
+	err := resourceReadServer(d, meta)
+	if err != nil {
+		return []*schema.ResourceData{}, err
+	}
+	return []*schema.ResourceData{d}, nil
 }
 
 func setFlexbotInput(d *schema.ResourceData, p *schema.ResourceData) (*config.NodeConfig, error) {
@@ -754,6 +767,7 @@ func setFlexbotOutput(d *schema.ResourceData, nodeConfig *config.NodeConfig) {
 	if len(compute["blade_spec"].([]interface{})) > 0 {
 		bladeSpec := compute["blade_spec"].([]interface{})[0].(map[string]interface{})
 		bladeSpec["dn"] = nodeConfig.Compute.BladeSpec.Dn
+		compute["blade_spec"].([]interface{})[0] = bladeSpec
 	}
 	storage := d.Get("storage").([]interface{})[0].(map[string]interface{})
 	storage["svm_name"] = nodeConfig.Storage.SvmName
@@ -804,9 +818,9 @@ func setFlexbotOutput(d *schema.ResourceData, nodeConfig *config.NodeConfig) {
 		}
 		network["iscsi_initiator"].([]interface{})[i] = initiator
 	}
-	d.Set("compute", compute)
-	d.Set("storage", storage)
-	d.Set("network", network)
+	d.Set("compute", []interface{}{compute})
+	d.Set("storage", []interface{}{storage})
+	d.Set("network", []interface{}{network})
 }
 
 func checkSshListen(host string) (listen bool) {

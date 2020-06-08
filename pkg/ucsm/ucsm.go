@@ -209,6 +209,13 @@ func DiscoverServer(nodeConfig *config.NodeConfig) (serverExists bool, err error
 		return
 	}
 	serverExists = true
+	var computeBlade *mo.ComputeBlade
+	if computeBlade, err = util.SpGetComputeBlade(client, nodeConfig.Compute.SpDn); err != nil {
+		err = fmt.Errorf("DiscoverServer: SpGetComputeBlade(): %s", err)
+                return
+        } else {
+                nodeConfig.Compute.BladeSpec.Dn = computeBlade.Dn
+        }
 	var vnicsEther *[]mo.VnicEther
 	if vnicsEther, err = util.SpGetVnicsEther(client, nodeConfig.Compute.SpDn); err != nil {
 		err = fmt.Errorf("DiscoverServer: SpGetVnicsEther(): %s", err)
