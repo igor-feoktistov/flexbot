@@ -1,27 +1,29 @@
 nodes = {
   masters = {
-    hosts = ["nodek8s01","nodek8s02","nodek8s03"]
+    hosts = ["nodek8s01", "nodek8s02", "nodek8s03"]
+    compute_blade_spec_dn = ["", "", ""]
     compute_blade_spec_model = "UCSB-B200-M5"
     compute_blade_spec_total_memory = "65536"
-    os_image = "ubuntu-18.04-iboot"
-    seed_template = "cloud-init/ubuntu-18.04-cloud-init.template"
-    boot_lun_size = 20
-    data_lun_size = 64
+    os_image = "rhel-7.8.01-iboot"
+    seed_template = "cloud-init/rhel7-cloud-init.template"
+    boot_lun_size = 24
+    data_lun_size = 128
   }
   workers = {
-    hosts = ["nodek8s04","nodek8s05","nodek8s06"]
+    hosts = ["nodek8s04", "nodek8s05", "nodek8s06"]
+    compute_blade_spec_dn = ["", "", ""]
     compute_blade_spec_model = "UCSB-B200-M5"
-    compute_blade_spec_total_memory = "262144-524288"
-    os_image = "ubuntu-18.04-iboot"
-    seed_template = "cloud-init/ubuntu-18.04-cloud-init.template"
-    boot_lun_size = 20
-    data_lun_size = 512
+    compute_blade_spec_total_memory = "65536-262144"
+    os_image = "rhel-7.8.01-iboot"
+    seed_template = "cloud-init/rhel7-cloud-init.template"
+    boot_lun_size = 24
+    data_lun_size = 256
   }
 }
 
 rancher_config = {
   api_url = "https://rancher.example.com"
-  token_key = "token-947h6:d7m2sj<trimmed>f7slwynnqw92l4rg"
+  token_key = "token-677h5:fd7g2<...trimmed...>wfnr2e"
   rke_template = "rke-flexpod"
 }
 
@@ -29,17 +31,17 @@ flexbot_credentials = {
   infoblox = {
     host = "ib.example.com"
     user = "admin"
-    password = "secret"
+    password = "base64:hROs<...trimmed...>asdvfwerferf="
   }
   ucsm = {
     host = "ucsm.example.com"
     user = "admin"
-    password = "secret"
+    password = "base64:SdfU<...trimmed...>zidfvdgbgKhg="
   }
   cdot = {
     host = "svm.example.com"
     user = "vsadmin"
-    password = "secret"
+    password = "base64:SFgi<...trimmed...>dgajGeKjsYGb="
   }
 }
 
@@ -60,15 +62,15 @@ node_compute_config = {
 node_network_config = {
   node1 = {
     if_name = "eth2"
-    subnet = "192.168.2.0/24"
-    gateway = "192.168.2.1"
-    dns_server1 = "192.168.2.10"
-    dns_server2 = "192.168.5.10"
+    subnet = "192.168.1.0/24"
+    gateway = "192.168.1.1"
+    dns_server1 = "192.168.5.10"
+    dns_server2 = ""
     dns_domain = "example.com"
   }
   iscsi1 = {
     if_name = "iscsi0"
-    subnet = "192.168.3.0/24"
+    subnet = "192.168.2.0/24"
     gateway = ""
     dns_server1 = ""
     dns_server2 = ""
@@ -76,7 +78,7 @@ node_network_config = {
   }
   iscsi2 = {
     if_name = "iscsi1"
-    subnet = "192.168.4.0/24"
+    subnet = "192.168.3.0/24"
     gateway = ""
     dns_server1 = ""
     dns_server2 = ""
