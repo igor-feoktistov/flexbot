@@ -8,47 +8,47 @@ Also available as a terraform provider (see [terraform](./terraform)).
 
 ## Usage
 
- - Provision server:
-   ```flexbot --config=<config file path> --op=provisionServer --host=<host node name> --image=<image name> --template=<cloud-init template name or path>```
+ - Provision server:\
+   ```flexbot --config=<config file path> --op=provisionServer --host=<host node name> --image=<image name> --template=<cloud-init template name or path>```\
 
- - De-provision server:
-   ```flexbot --config=<config file path> --op=deprovisionServer --host=<host node name>```
+ - De-provision server:\
+   ```flexbot --config=<config file path> --op=deprovisionServer --host=<host node name>```\
 
- - Power Off server:
-   ```flexbot --config=<config file path> --op=stopServer --host=<host node name>```
+ - Power Off server:\
+   ```flexbot --config=<config file path> --op=stopServer --host=<host node name>```\
 
- - Power On server:
-   ```flexbot --config=<config file path> --op=startServer --host=<host node name>```
+ - Power On server:\
+   ```flexbot --config=<config file path> --op=startServer --host=<host node name>```\
 
- - Encrypt passwords in configuration:
-   ```flexbot --config=<config file path> --op=encryptConfig [--passphrase=<password phrase>]```
+ - Encrypt passwords in configuration:\
+   ```flexbot --config=<config file path> --op=encryptConfig [--passphrase=<password phrase>]```\
 
- - Encrypt string:
-   ```flexbot --op=encryptString [--passphrase=<password phrase>]```
+ - Encrypt string:\
+   ```flexbot --op=encryptString --sourceString <string to encrypt> [--passphrase=<password phrase>]```\
 
- - Decrypt passwords in configuration:
-   ```flexbot --config=<config file path> --op=decryptConfig [--passphrase=<password phrase>]```
+ - Decrypt passwords in configuration:\
+   ```flexbot --config=<config file path> --op=decryptConfig [--passphrase=<password phrase>]```\
 
- - Upload image into image repository:
-   ```flexbot --config=<config file path> --op=uploadImage --image=<image name> --imagePath=<image path>```
+ - Upload image into image repository:\
+   ```flexbot --config=<config file path> --op=uploadImage --image=<image name> --imagePath=<image path>```\
 
- - Delete image from image repository:
-   ```flexbot --config=<config file path> --op=deleteImage --image=<image name>```
+ - Delete image from image repository:\
+   ```flexbot --config=<config file path> --op=deleteImage --image=<image name>```\
 
- - List images in image repository:
-   ```flexbot --config=<config file path> --op=listImages```
+ - List images in image repository:\
+   ```flexbot --config=<config file path> --op=listImages```\
 
- - Upload cloud-init template into template repository:
-   ```flexbot --config=<config file path> --op=uploadTemplate --template=<template name> --templatePath=<template path>```
+ - Upload cloud-init template into template repository:\
+   ```flexbot --config=<config file path> --op=uploadTemplate --template=<template name> --templatePath=<template path>```\
 
- - Download cloud-init template from template repository and print to STDOUT:
-   ```flexbot --config=<config file path> --op=downloadTemplate --template=<template name>```
+ - Download cloud-init template from template repository and print to STDOUT:\
+   ```flexbot --config=<config file path> --op=downloadTemplate --template=<template name>```\
 
- - Delete cloud-init template from template repository:
-   ```flexbot --config=<config file path> --op=deleteTemplate --template=<template name>```
+ - Delete cloud-init template from template repository:\
+   ```flexbot --config=<config file path> --op=deleteTemplate --template=<template name>```\
 
- - List cloud-init templates in template repository:
-   ```flexbot --config=<config file path> --op=listTemplates```
+ - List cloud-init templates in template repository:\
+   ```flexbot --config=<config file path> --op=listTemplates```\
 
 ## Runtime arguments
 
