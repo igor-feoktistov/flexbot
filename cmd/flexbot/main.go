@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	version = "1.1.8"
+	version = "1.2.0"
 )
 
 type NodeResult struct {
@@ -34,6 +34,12 @@ type ImageResult struct {
 	Images       []string `yaml:"images,omitempty" json:"images,omitempty"`
 }
 
+type TemplateResult struct {
+	Status       string   `yaml:"status" json:"status"`
+	ErrorMessage string   `yaml:"errorMessage,omitempty" json:"errorMessage,omitempty"`
+	Templates    []string `yaml:"templates,omitempty" json:"templates,omitempty"`
+}
+
 func Usage() {
 	goOS := runtime.GOOS
 	goARCH := runtime.GOARCH
@@ -46,10 +52,14 @@ func Usage() {
 	fmt.Printf("flexbot --config=<config file path> --op=deprovisionServer --host=<host node name>\n\n")
 	fmt.Printf("flexbot --config=<config file path> --op=decryptConfig [--passphrase=<password phrase>]\n\n")
 	fmt.Printf("flexbot --config=<config file path> --op=encryptConfig [--passphrase=<password phrase>]\n\n")
-	fmt.Printf("flexbot --op=encryptString --sourceString <string to encrypt> [--passphrase=<password phrase>]\n\n")
 	fmt.Printf("flexbot --config=<config file path> --op=uploadImage --image=<image name> --imagePath=<image path>\n\n")
 	fmt.Printf("flexbot --config=<config file path> --op=deleteImage --image=<image name>\n\n")
 	fmt.Printf("flexbot --config=<config file path> --op=listImages\n\n")
+	fmt.Printf("flexbot --config=<config file path> --op=uploadTemplate --template=<template name> --templatePath=<template path>\n\n")
+	fmt.Printf("flexbot --config=<config file path> --op=downloadTemplate --template=<template name>\n\n")
+	fmt.Printf("flexbot --config=<config file path> --op=deleteTemplate --template=<template name>\n\n")
+	fmt.Printf("flexbot --config=<config file path> --op=listTemplates\n\n")
+	fmt.Printf("flexbot --op=encryptString --sourceString <string to encrypt> [--passphrase=<password phrase>]\n\n")
 	fmt.Printf("flexbot --version\n\n")
 }
 
@@ -237,6 +247,23 @@ func UploadImage(nodeConfig *config.NodeConfig, imageName string, imagePath stri
 	return
 }
 
+func UploadTemplate(nodeConfig *config.NodeConfig, templateName string, templatePath string) (err error) {
+	outcome := make(chan bool)
+	defer close(outcome)
+	fmt.Printf("Uploading template..")
+	go printProgess(outcome)
+	if err = ontap.CreateRepoTemplate(nodeConfig, templateName, templatePath); err != nil {
+		outcome <- false
+	} else {
+		outcome <- true
+	}
+	time.Sleep(1 * time.Second)
+	if err != nil {
+		fmt.Printf("\n%s\n", err)
+	}
+	return
+}
+
 func DeleteImage(nodeConfig *config.NodeConfig, imageName string) (err error) {
 	fmt.Printf("Deleting image..")
 	if err = ontap.DeleteRepoImage(nodeConfig, imageName); err == nil {
@@ -245,6 +272,26 @@ func DeleteImage(nodeConfig *config.NodeConfig, imageName string) (err error) {
 		fmt.Println("failure")
 		fmt.Printf("\n%s\n", err)
 	}
+	return
+}
+
+func DeleteTemplate(nodeConfig *config.NodeConfig, templateName string) (err error) {
+	fmt.Printf("Deleting template..")
+	if err = ontap.DeleteRepoTemplate(nodeConfig, templateName); err == nil {
+		fmt.Println("succes")
+	} else {
+		fmt.Println("failure")
+		fmt.Printf("\n%s\n", err)
+	}
+	return
+}
+
+func DownloadTemplate(nodeConfig *config.NodeConfig, templateName string) (err error) {
+	var templateContent []byte
+	if templateContent, err = ontap.DownloadRepoTemplate(nodeConfig, templateName); err != nil {
+		panic("Failure to download template: " + err.Error())
+	}
+	fmt.Print(string(templateContent))
 	return
 }
 
@@ -310,6 +357,35 @@ func DumpImageResult(resultDest string, images []string, format string, resultEr
 	}
 }
 
+func DumpTemplateResult(resultDest string, templates []string, format string, resultErr error) {
+	var b []byte
+	var err error
+	var templateResult TemplateResult
+	templateResult.Templates = templates
+	if resultErr == nil {
+		templateResult.Status = "success"
+	} else {
+		templateResult.Status = "failure"
+		templateResult.ErrorMessage = resultErr.Error()
+	}
+	if format == "yaml" {
+		b, err = yaml.Marshal(templateResult)
+	} else {
+		b, err = json.Marshal(templateResult)
+	}
+	if err != nil {
+		panic("Failure to decode template result: " + err.Error())
+	} else {
+		if resultDest == "STDOUT" {
+			fmt.Print(string(b))
+		} else {
+			if err = ioutil.WriteFile(resultDest, b, 0644); err != nil {
+				panic("Failure to write template result: " + err.Error())
+			}
+		}
+	}
+}
+
 func DumpNodeConfig(configDest string, nodeConfig *config.NodeConfig, format string) {
 	var b []byte
 	var err error
@@ -348,7 +424,8 @@ func main() {
 	optHostName := flag.String("host", "", "compute node name")
 	optImageName := flag.String("image", "", "boot image name")
 	optImagePath := flag.String("imagePath", "", "a path to boot image (prefix can be either file:// or http(s)://)")
-	optTemplate := flag.String("template", "", "a path to cloud-init template (prefix can be either file:// or http(s)://)")
+	optTemplateName := flag.String("template", "", "cloud-init template name or path (prefix can be either file:// or http(s)://)")
+	optTemplatePath := flag.String("templatePath", "", "cloud-init template path (prefix can be either file:// or http(s)://)")
 	optPassPhrase := flag.String("passphrase", "", "passphrase to encrypt/decrypt passwords in configuration (default is machineid)")
 	optSourceString := flag.String("sourceString", "", "source string to encrypt")
 	optNodeConfig := flag.String("config", "STDIN", "a path to configuration file, STDIN, or argument value in JSON")
@@ -375,7 +452,12 @@ func main() {
 		*optOp == "stopServer" ||
 		*optOp == "startServer" ||
 		*optOp == "uploadImage" ||
+		*optOp == "uploadTemplate" ||
+		*optOp == "downloadTemplate" ||
 		*optOp == "listImages" ||
+		*optOp == "listTemplates" ||
+		*optOp == "deleteImage" ||
+		*optOp == "deleteTemplate" ||
 		*optOp == "encryptConfig" ||
 		*optOp == "decryptConfig" {
 		if err = config.ParseNodeConfig(*optNodeConfig, &nodeConfig); err != nil {
@@ -384,7 +466,7 @@ func main() {
 	}
 	switch *optOp {
 	case "provisionServer":
-		if err = config.SetDefaults(&nodeConfig, *optHostName, *optImageName, *optTemplate, passPhrase); err != nil {
+		if err = config.SetDefaults(&nodeConfig, *optHostName, *optImageName, *optTemplateName, passPhrase); err != nil {
 			err = fmt.Errorf("SetDefaults() failure: %s", err)
 		} else {
 			if nodeConfig.Compute.HostName == "" || nodeConfig.Storage.BootLun.OsImage.Name == "" || nodeConfig.Storage.SeedLun.SeedTemplate.Location == "" {
@@ -447,6 +529,28 @@ func main() {
 		} else {
 			UploadImage(&nodeConfig, *optImageName, *optImagePath)
 		}
+	case "uploadTemplate":
+		if *optTemplateName == "" || *optTemplatePath == "" {
+			Usage()
+			return
+		}
+		if err = config.SetDefaults(&nodeConfig, *optHostName, "", "", passPhrase); err != nil {
+			err = fmt.Errorf("SetDefaults() failure: %s", err)
+			fmt.Printf("%s\n\n", err.Error())
+		} else {
+			UploadTemplate(&nodeConfig, *optTemplateName, *optTemplatePath)
+		}
+	case "downloadTemplate":
+		if *optTemplateName == "" {
+			Usage()
+			return
+		}
+		if err = config.SetDefaults(&nodeConfig, *optHostName, "", "", passPhrase); err != nil {
+			err = fmt.Errorf("SetDefaults() failure: %s", err)
+			fmt.Printf("%s\n\n", err.Error())
+		} else {
+			DownloadTemplate(&nodeConfig, *optTemplateName)
+		}
 	case "deleteImage":
 		if *optImageName == "" {
 			Usage()
@@ -458,6 +562,17 @@ func main() {
 		} else {
 			DeleteImage(&nodeConfig, *optImageName)
 		}
+	case "deleteTemplate":
+		if *optTemplateName == "" {
+			Usage()
+			return
+		}
+		if err = config.SetDefaults(&nodeConfig, *optHostName, "", "", passPhrase); err != nil {
+			err = fmt.Errorf("SetDefaults() failure: %s", err)
+			fmt.Printf("%s\n\n", err.Error())
+		} else {
+			DeleteTemplate(&nodeConfig, *optTemplateName)
+		}
 	case "listImages":
 		if err = config.SetDefaults(&nodeConfig, *optHostName, "", "", passPhrase); err != nil {
 			err = fmt.Errorf("SetDefaults() failure: %s", err)
@@ -466,6 +581,15 @@ func main() {
 			var images []string
 			images, err = ontap.GetRepoImages(&nodeConfig)
 			DumpImageResult("STDOUT", images, *optEncodingFormat, err)
+		}
+	case "listTemplates":
+		if err = config.SetDefaults(&nodeConfig, *optHostName, "", "", passPhrase); err != nil {
+			err = fmt.Errorf("SetDefaults() failure: %s", err)
+			fmt.Printf("%s\n\n", err.Error())
+		} else {
+			var templates []string
+			templates, err = ontap.GetRepoTemplates(&nodeConfig)
+			DumpTemplateResult("STDOUT", templates, *optEncodingFormat, err)
 		}
 	case "encryptConfig":
 		if err = config.EncryptNodeConfig(&nodeConfig, passPhrase); err == nil {

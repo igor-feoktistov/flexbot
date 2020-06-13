@@ -207,6 +207,8 @@ github.com/hashicorp/yamux v0.0.0-20180604194846-3520598351bb/go.mod h1:+NfK9FKe
 github.com/hpcloud/tail v1.0.0/go.mod h1:ab1qPbhIpdTxEkNHXyeSf5vhxWSCs/tWer42PpOxQnU=
 github.com/igor-feoktistov/go-ontap-sdk v0.0.0-20200520221657-0c35d124cb7e h1:VrnzNyv6StGTuRAAHlq4WPHpeo8eehadu2YW4y3RXok=
 github.com/igor-feoktistov/go-ontap-sdk v0.0.0-20200520221657-0c35d124cb7e/go.mod h1:oOr8HpXRFz2R8XSZ5vRoNCoScHqGbe2ze1BrxcCohcE=
+github.com/igor-feoktistov/go-ontap-sdk v0.0.0-20200612170031-9aa97e93c143 h1:IUlk41lNmZGeIiq4AmbyvYdWWt2buPStiFc6PEk0csg=
+github.com/igor-feoktistov/go-ontap-sdk v0.0.0-20200612170031-9aa97e93c143/go.mod h1:oOr8HpXRFz2R8XSZ5vRoNCoScHqGbe2ze1BrxcCohcE=
 github.com/igor-feoktistov/go-ucsm-sdk v0.0.0-20200520224553-145dfd305473 h1:PXCiFhTl210WD0HLIhkxNrIIShR+9fO54RZzSetZnuU=
 github.com/igor-feoktistov/go-ucsm-sdk v0.0.0-20200520224553-145dfd305473/go.mod h1:4mJNNQkZ0NRrVHsO/7lRbNLvt/x0cZYIbaJ/+Is2UCE=
 github.com/infobloxopen/infoblox-go-client v1.1.0 h1:fw8q8USnngsoZxLploJ0LomBN+1SAhSyEjUZrSibKX4=

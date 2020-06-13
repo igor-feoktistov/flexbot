@@ -1,14 +1,15 @@
 package ontap
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"os"
 	"strings"
+	"bytes"
 	"sync"
+	"path/filepath"
 	"text/template"
 
 	"flexbot/pkg/config"
@@ -19,6 +20,8 @@ import (
 
 func CreateSeedStorage(nodeConfig *config.NodeConfig) (err error) {
 	var fileReader io.Reader
+	var file *os.File
+	var b []byte
 	if strings.HasPrefix(nodeConfig.Storage.SeedLun.SeedTemplate.Location, "http://") || strings.HasPrefix(nodeConfig.Storage.SeedLun.SeedTemplate.Location, "https://") {
 		var httpResponse *http.Response
 		if httpResponse, err = http.Get(nodeConfig.Storage.SeedLun.SeedTemplate.Location); err == nil {
@@ -29,23 +32,30 @@ func CreateSeedStorage(nodeConfig *config.NodeConfig) (err error) {
 			return
 		}
 	} else {
-		var file *os.File
 		if strings.HasPrefix(nodeConfig.Storage.SeedLun.SeedTemplate.Location, "file://") {
 			file, err = os.Open(nodeConfig.Storage.SeedLun.SeedTemplate.Location[7:])
 		} else {
 			file, err = os.Open(nodeConfig.Storage.SeedLun.SeedTemplate.Location)
 		}
 		if err != nil {
+			if os.IsNotExist(err) {
+				// Last resort to download template from storage repository
+				b, err = DownloadRepoTemplate(nodeConfig, filepath.Base(nodeConfig.Storage.SeedLun.SeedTemplate.Location))
+			}
+		} else {
+			fileReader = file
+			defer file.Close()
+		}
+		if err != nil {
 			err = fmt.Errorf("CreateSeedStorage: failure to open cloud-init template %s: %s", nodeConfig.Storage.SeedLun.SeedTemplate.Location, err)
 			return
 		}
-		fileReader = file
-		defer file.Close()
 	}
-	var b []byte
-	if b, err = ioutil.ReadAll(fileReader); err != nil {
-		err = fmt.Errorf("CreateSeedStorage: failure to read cloud-init template %s: %s", nodeConfig.Storage.SeedLun.SeedTemplate.Location, err)
-		return
+	if len(b) == 0 {
+		if b, err = ioutil.ReadAll(fileReader); err != nil {
+			err = fmt.Errorf("CreateSeedStorage: failure to read cloud-init template %s: %s", nodeConfig.Storage.SeedLun.SeedTemplate.Location, err)
+			return
+		}
 	}
 	var isoWriter *iso9660.ImageWriter
 	if isoWriter, err = iso9660.NewWriter(); err != nil {
@@ -155,7 +165,13 @@ func CreateSeedStoragePreflight(nodeConfig *config.NodeConfig) (err error) {
 			file, err = os.Open(nodeConfig.Storage.SeedLun.SeedTemplate.Location)
 		}
 		if err != nil {
-			err = fmt.Errorf("CreateSeedStoragePreflight: failure to open cloud-init template %s: %s", nodeConfig.Storage.SeedLun.SeedTemplate.Location, err)
+			templateExists := false
+			if os.IsNotExist(err) {
+				templateExists, err = IsRepoTemplateExist(nodeConfig, nodeConfig.Storage.SeedLun.SeedTemplate.Location)
+			}
+			if !templateExists {
+				err = fmt.Errorf("CreateSeedStoragePreflight: failure to open cloud-init template %s: %s", nodeConfig.Storage.SeedLun.SeedTemplate.Location, err)
+			}
 		} else {
 			file.Close()
 		}

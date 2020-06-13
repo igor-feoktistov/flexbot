@@ -9,7 +9,7 @@ Also available as a terraform provider (see [terraform](./terraform)).
 ## Usage
 
  - Provision server:
-   ```flexbot --config=<config file path> --op=provisionServer --host=<host node name> --image=<image name> --template=<cloud-init template path>```
+   ```flexbot --config=<config file path> --op=provisionServer --host=<host node name> --image=<image name> --template=<cloud-init template name or path>```
 
  - De-provision server:
    ```flexbot --config=<config file path> --op=deprovisionServer --host=<host node name>```
@@ -38,6 +38,18 @@ Also available as a terraform provider (see [terraform](./terraform)).
  - List images in image repository:
    ```flexbot --config=<config file path> --op=listImages```
 
+ - Upload cloud-init template into template repository:
+   ```flexbot --config=<config file path> --op=uploadTemplate --template=<template name> --templatePath=<template path>```
+
+ - Download cloud-init template from template repository and print to STDOUT:
+   ```flexbot --config=<config file path> --op=downloadTemplate --template=<template name>```
+
+ - Delete cloud-init template from template repository:
+   ```flexbot --config=<config file path> --op=deleteTemplate --template=<template name>```
+
+ - List cloud-init templates in template repository:
+   ```flexbot --config=<config file path> --op=listTemplates```
+
 ## Runtime arguments
 
   - config: `a path to configuration file, STDIN, or argument value in JSON (default "STDIN")`
@@ -45,10 +57,12 @@ Also available as a terraform provider (see [terraform](./terraform)).
   - encodingFormat: `supported encoding formats: json, yaml (default "yaml")`
   - host: `compute node name`
   - image: `boot image name`
-  - imagePath: `a path to boot image (prefix can be either file:// or http(s)://)`
-  - op: `provisionServer, deprovisionServer, stopServer, startServer, uploadImage, listImages, encryptConfig, decryptConfig, encryptString`
-  - passphrase: `passphrase to encrypt/decrypt passwords in configuration (default is machineid)`
-  - template: `a path to cloud-init template (prefix can be either file:// or http(s)://)`
+  - imagePath: `a path to boot image (optional prefix can be either file:// or http(s)://)`
+  - template: `cloud-init template name or path (optional prefix can be either file:// or http(s)://)`
+  - imagePath: `cloud-init template path (optional prefix can be either file:// or http(s)://)`
+  - op: `provisionServer, deprovisionServer, stopServer, startServer, uploadImage, deleteImage, listImages, uploadTemplate, downloadTemplate, deleteTemplate, listTemplates, encryptConfig, decryptConfig, encryptString`
+  - sourceString: `source string to encrypt by encryptString operation`
+  - passphrase: `passphrase to encrypt/decrypt passwords in configuration (default is machine ID)`
 
 ## Passwords Encryption
 
@@ -299,8 +313,10 @@ NFS client support in the tool is built-in.
 
 ## Cloud-init templates
 
-Cloud-init templates is GoLang templates with passed from `configuration` parameters.
+Cloud-init templates are GoLang templates with passed from `configuration` parameters.
 See `examples/cloud-init/ubuntu-18.04-cloud-init.template` as an example for ubuntu-18.04.
+Cloud-init templates can be kept in storage repository similarly to images.
+See `uploadTemplate` operation on how to upload templates into storage repository.
 
 ## Installation
 
