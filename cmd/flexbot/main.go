@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	version = "1.2.0"
+	version = "1.2.1"
 )
 
 type NodeResult struct {
@@ -301,7 +301,7 @@ func DumpNodeResult(resultDest string, nodeConfig *config.NodeConfig, format str
 	var err error
 	nodeResult.Node = nodeConfig
 	nodeResult.Node.Ipam.IbCredentials = config.InfobloxCredentials{}
-	nodeResult.Node.Storage.CdotCredentials = config.Credentials{}
+	nodeResult.Node.Storage.CdotCredentials = config.CdotCredentials{}
 	nodeResult.Node.Compute.UcsmCredentials = config.Credentials{}
 	nodeResult.Node.CloudArgs = map[string]string{}
 	if resultErr == nil {

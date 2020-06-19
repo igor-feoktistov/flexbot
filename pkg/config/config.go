@@ -20,6 +20,7 @@ import (
 const (
 	imageRepoVolName = "image_repo"
 	templateRepoVolName = "template_repo"
+	zapiVersion = "1.160"
 )
 
 // Name convention for cDOT storage objects (can be overriden via config.yaml)
@@ -42,6 +43,11 @@ type InfobloxCredentials struct {
 	WapiVersion string `yaml:"wapiVersion,omitempty" json:"wapiVersion,omitempty"`
 	DnsView     string `yaml:"dnsView,omitempty" json:"dnsView,omitempty"`
 	NetworkView string `yaml:"networkView,omitempty" json:"networkView,omitempty"`
+}
+
+type CdotCredentials struct {
+	Credentials `yaml:",inline" json:",inline"`
+	ZapiVersion string `yaml:"zapiVersion,omitempty" json:"zapiVersion,omitempty"`
 }
 
 type NetworkInterface struct {
@@ -105,15 +111,15 @@ type SeedLun struct {
 }
 
 type Storage struct {
-	CdotCredentials Credentials `yaml:"cdotCredentials,omitempty" json:"cdotCredentials,omitempty"`
-	SvmName          string      `yaml:"svmName,omitempty" json:"svmName,omitempty"`
-	ImageRepoName    string      `yaml:"imageRepoName,omitempty" json:"imageRepoName,omitempty"`
-	TemplateRepoName string      `yaml:"templateRepoName,omitempty" json:"templateRepoName,omitempty"`
-	VolumeName       string      `yaml:"volumeName,omitempty" json:"volumeName,omitempty"`
-	IgroupName       string      `yaml:"igroupName,omitempty" json:"igroupName,omitempty"`
-	BootLun          BootLun     `yaml:"bootLun,omitempty" json:"bootLun,omitempty"`
-	DataLun          Lun         `yaml:"dataLun,omitempty" json:"dataLun,omitempty"`
-	SeedLun          SeedLun     `yaml:"seedLun,omitempty" json:"seedLun,omitempty"`
+	CdotCredentials  CdotCredentials `yaml:"cdotCredentials,omitempty" json:"cdotCredentials,omitempty"`
+	SvmName          string          `yaml:"svmName,omitempty" json:"svmName,omitempty"`
+	ImageRepoName    string          `yaml:"imageRepoName,omitempty" json:"imageRepoName,omitempty"`
+	TemplateRepoName string          `yaml:"templateRepoName,omitempty" json:"templateRepoName,omitempty"`
+	VolumeName       string          `yaml:"volumeName,omitempty" json:"volumeName,omitempty"`
+	IgroupName       string          `yaml:"igroupName,omitempty" json:"igroupName,omitempty"`
+	BootLun          BootLun         `yaml:"bootLun,omitempty" json:"bootLun,omitempty"`
+	DataLun          Lun             `yaml:"dataLun,omitempty" json:"dataLun,omitempty"`
+	SeedLun          SeedLun         `yaml:"seedLun,omitempty" json:"seedLun,omitempty"`
 }
 
 type Network struct {
@@ -131,6 +137,9 @@ type NodeConfig struct {
 
 func SetDefaults(nodeConfig *NodeConfig, hostName string, image string, templatePath string, passPhrase string) (err error) {
 	var ipv4Net *net.IPNet
+	if nodeConfig.Storage.CdotCredentials.ZapiVersion == "" {
+		nodeConfig.Storage.CdotCredentials.ZapiVersion = zapiVersion
+	}
 	if nodeConfig.Storage.ImageRepoName == "" {
 		nodeConfig.Storage.ImageRepoName = imageRepoVolName
 	}

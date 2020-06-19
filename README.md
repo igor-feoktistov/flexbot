@@ -124,6 +124,8 @@ storage:
         host: svm.example.com
         user: vsadmin
         password: secret
+        # ZAPI version to handle older OnTap (optional, default is "1.160")
+        zapiVersion: "1.110"
     # not required if SVM is in cdotCredentials
     #svmName: svmlabk8s03spd
     # Boot LUN

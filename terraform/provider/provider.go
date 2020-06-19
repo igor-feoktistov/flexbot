@@ -125,6 +125,10 @@ func Provider() terraform.ResourceProvider {
 										Type:     schema.TypeString,
 										Required: true,
 									},
+									"zapi_version": {
+										Type:     schema.TypeString,
+										Optional: true,
+									},
 								},
 							},
 						},

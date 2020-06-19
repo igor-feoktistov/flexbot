@@ -38,10 +38,12 @@ provider "flexbot" {
   storage {
     # Credentials either for cDOT cluster or SVM
     # SVM (storage virtual machine) is highly recommended
+    # ZAPI version is optional to handle older OnTap
     credentials {
       host = "svm.example.com"
       user = "vsadmin"
       password = "secret"
+      zapi_version = "1.160"
     }
   }
 

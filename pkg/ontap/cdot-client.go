@@ -17,7 +17,7 @@ func CreateCdotClient(nodeConfig *config.NodeConfig) (c *ontap.Client, err error
 			SSLVerify:         false,
 			Debug:             false,
 			Timeout:           60 * time.Second,
-			Version:           "1.160",
+			Version:           nodeConfig.Storage.CdotCredentials.ZapiVersion,
 		},
 	)
 	var vserverOptions *ontap.VserverGetOptions
