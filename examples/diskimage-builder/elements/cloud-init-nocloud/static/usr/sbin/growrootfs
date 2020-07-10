@@ -2,7 +2,7 @@
 #
 # This script grows root FS on XFS
 #
-mpath_dev=`df / | sed -n "s/^\/dev\/mapper\/\([0-9a-f]*\)p*1.*/\1/p"`
+mpath_dev=`df / | sed -n "s/^\/dev\/mapper\/\([0-9a-f]*\)\(p1\)*.*/\1/p"`
 for blk_dev in `multipath -l $mpath_dev | sed -n "s/.*[0-9] \(sd[a-z]\) [0-9].*/\1/p"`; do
     growpart /dev/$blk_dev 1
 done

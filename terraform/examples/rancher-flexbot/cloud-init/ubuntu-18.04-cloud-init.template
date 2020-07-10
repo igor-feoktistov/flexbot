@@ -7,19 +7,19 @@ ethernets:
 {{- range .Network.Node}}
   {{.Name}}:
     match:
-      mac_address: {{.Macaddr}}
-      addresses:
-      - {{.Ip}}/{{.NetLen}}
-      {{- if .Gateway}}
-      gateway4: {{.Gateway}}
+      macaddress: {{.Macaddr}}
+    addresses:
+    - {{.Ip}}/{{.NetLen}}
+    {{- if .Gateway}}
+    gateway4: {{.Gateway}}
+    {{- end}}
+    {{- if .DnsServer1}}
+    nameservers:
+      addresses: [{{.DnsServer1}}{{if .DnsServer2}},{{.DnsServer2}}{{end}}]
+      {{- if .DnsDomain}}
+      search: [{{.DnsDomain}}]
       {{- end}}
-      {{- if .DnsServer1}}
-      nameservers:
-        {{- if .DnsDomain}}
-        search: [{{.DnsDomain}}]
-        {{- end}}
-        addresses: [{{.DnsServer1}}{{if .DnsServer2}},{{.DnsServer2}}{{end}}]
-      {{- end}}
+    {{- end}}
 {{- end}}
 {{end}}{{/* network-config template ends here */}}
 {{define "user-data"}}{{/* user-data template starts here */ -}}
@@ -30,32 +30,6 @@ ssh_deletekeys: false
 ssh_pwauth: true
 hostname: {{(index .Network.Node 0).Fqdn}}
 fqdn: {{(index .Network.Node 0).Fqdn}}
-
-write_files:
-- path: /etc/netplan/99-nocloud.yaml
-  permissions: '0644'
-  owner: root:root
-  content: |
-    network:
-      version: 2
-      ethernets:
-      {{- range .Network.Node}}
-        {{.Name}}:
-          match:
-            macaddress: {{.Macaddr}}
-          addresses:
-          - {{.Ip}}/{{.NetLen}}
-          {{- if .Gateway}}
-          gateway4: {{.Gateway}}
-          {{- end}}
-          {{- if .DnsServer1}}
-          nameservers:
-            {{- if .DnsDomain}}
-            search: [{{.DnsDomain}}]
-            {{- end}}
-            addresses: [{{.DnsServer1}}{{if .DnsServer2}},{{.DnsServer2}}{{end}}]
-          {{- end}}
-      {{- end}}
 
 {{if .Storage.DataLun.Size -}}
 remotedisk_setup:
@@ -84,12 +58,13 @@ bootcmd:
   - [ /usr/sbin/growrootfs ]
 
 runcmd:
-  - [ /usr/sbin/netplan, apply ]
   - [ touch, /etc/cloud/cloud-init.disabled ]
   - [ mkdir, /kubernetes/kubelet ]
   - [ mkdir, /kubernetes/docker ]
   - [ mkdir, /kubernetes/log ]
+  - [ mkdir, /kubernetes/etcd ]
   - [ ln, -s, /kubernetes/kubelet, /var/lib/kubelet ]
   - [ ln, -s, /kubernetes/docker, /var/lib/docker ]
   - [ ln, -s, /kubernetes/log, /var/log/pods ]
+  - [ ln, -s, /kubernetes/etcd, /var/lib/etcd ]
 {{end}}{{/* user-data template ends here */}}

@@ -67,7 +67,9 @@ runcmd:
   - [ mkdir, /kubernetes/kubelet ]
   - [ mkdir, /kubernetes/docker ]
   - [ mkdir, /kubernetes/log ]
+  - [ mkdir, /kubernetes/etcd ]
   - [ ln, -s, /kubernetes/kubelet, /var/lib/kubelet ]
   - [ ln, -s, /kubernetes/docker, /var/lib/docker ]
   - [ ln, -s, /kubernetes/log, /var/log/pods ]
+  - [ ln, -s, /kubernetes/etcd, /var/lib/etcd ]
 {{end}}{{/* user-data template ends here */}}

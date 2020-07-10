@@ -44,13 +44,17 @@ remotedisk_setup:
     lvm_volume: lv_k8s
     fs_type: xfs
     mount_point: /kubernetes
+    mount_opts: defaults
 {{- end}}
+
+groups:
+  - docker
 
 users:
   - name: {{index .CloudArgs "cloud_user"}}
     gecos: Default cloud user
     sudo: ALL=(ALL) NOPASSWD:ALL
-    groups: users, admin
+    groups: users, admin, docker
     ssh_import_id: None
     lock_passwd: true
     ssh_authorized_keys:
@@ -61,4 +65,13 @@ bootcmd:
 
 runcmd:
   - [ touch, /etc/cloud/cloud-init.disabled ]
+  - [ mkdir, /kubernetes/kubelet ]
+  - [ mkdir, /kubernetes/docker ]
+  - [ mkdir, /kubernetes/log ]
+  - [ mkdir, /kubernetes/etcd ]
+  - [ ln, -s, /kubernetes/kubelet, /var/lib/kubelet ]
+  - [ ln, -s, /kubernetes/docker, /var/lib/docker ]
+  - [ ln, -s, /kubernetes/log, /var/log/pods ]
+  - [ ln, -s, /kubernetes/etcd, /var/lib/etcd ]
+  - [ sed, -i, 's/,_netdev//g', /etc/fstab ]
 {{end}}{{/* user-data template ends here */}}
