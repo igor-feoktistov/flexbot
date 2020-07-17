@@ -9,25 +9,28 @@ Also available as a terraform provider (see [terraform](./terraform)).
 ## Usage
 
  - Provision server:\
-   ```flexbot --config=<config file path> --op=provisionServer --host=<host node name> --image=<image name> --template=<cloud-init template name or path>```
+   ```flexbot --config=<config file path> --op=provisionServer --host=<host name> --image=<image name> --template=<cloud-init template name or path>```
 
  - De-provision server:\
-   ```flexbot --config=<config file path> --op=deprovisionServer --host=<host node name>```
+   ```flexbot --config=<config file path> --op=deprovisionServer --host=<host name>```
 
  - Power Off server:\
-   ```flexbot --config=<config file path> --op=stopServer --host=<host node name>```
+   ```flexbot --config=<config file path> --op=stopServer --host=<host name>```
 
  - Power On server:\
-   ```flexbot --config=<config file path> --op=startServer --host=<host node name>```
+   ```flexbot --config=<config file path> --op=startServer --host=<host name>```
 
- - Encrypt passwords in configuration:\
-   ```flexbot --config=<config file path> --op=encryptConfig [--passphrase=<password phrase>]```
+ - Create storage snapshot:\
+   ```flexbot --config=<config file path> --op=createSnapshot --host=<host name> --snapshot=<snapshost name>```
 
- - Encrypt string:\
-   ```flexbot --op=encryptString --sourceString <string to encrypt> [--passphrase=<password phrase>]```
+ - Delete storage snapshot:\
+   ```flexbot --config=<config file path> --op=deleteSnapshot --host=<host name> --snapshot=<snapshost name>```
 
- - Decrypt passwords in configuration:\
-   ```flexbot --config=<config file path> --op=decryptConfig [--passphrase=<password phrase>]```
+ - Restore host from storage snapshot:\
+   ```flexbot --config=<config file path> --op=restoreSnapshot --host=<host name> --snapshot=<snapshost name>```
+
+ - List of available storage snapshots:\
+   ```flexbot --config=<config file path> --op=listSnapshots --host=<host name>```
 
  - Upload image into image repository:\
    ```flexbot --config=<config file path> --op=uploadImage --image=<image name> --imagePath=<image path>```
@@ -50,17 +53,27 @@ Also available as a terraform provider (see [terraform](./terraform)).
  - List cloud-init templates in template repository:\
    ```flexbot --config=<config file path> --op=listTemplates```
 
+ - Encrypt passwords in configuration:\
+   ```flexbot --config=<config file path> --op=encryptConfig [--passphrase=<password phrase>]```
+
+ - Decrypt passwords in configuration:\
+   ```flexbot --config=<config file path> --op=decryptConfig [--passphrase=<password phrase>]```
+
+ - Encrypt string:\
+   ```flexbot --op=encryptString --sourceString <string to encrypt> [--passphrase=<password phrase>]```
+
 ## Runtime arguments
 
-  - config: `a path to configuration file, STDIN, or argument value in JSON (default "STDIN")`
-  - dumpResult: `file path or STDOUT (default "STDOUT")`
+  - config: `a path to configuration file, STDIN, or argument value in JSON (default is "STDIN")`
+  - dumpResult: `file path or STDOUT (default is "STDOUT")`
   - encodingFormat: `supported encoding formats: json, yaml (default "yaml")`
   - host: `compute node name`
   - image: `boot image name`
   - imagePath: `a path to boot image (optional prefix can be either file:// or http(s)://)`
   - template: `cloud-init template name or path (optional prefix can be either file:// or http(s)://)`
-  - imagePath: `cloud-init template path (optional prefix can be either file:// or http(s)://)`
-  - op: `provisionServer, deprovisionServer, stopServer, startServer, uploadImage, deleteImage, listImages, uploadTemplate, downloadTemplate, deleteTemplate, listTemplates, encryptConfig, decryptConfig, encryptString`
+  - templatePath: `cloud-init template path (optional prefix can be either file:// or http(s)://)`
+  - snapshot: `storage snapshot name - in cDOT storage it is a volume snapshot name`
+  - op: `provisionServer, deprovisionServer, stopServer, startServer, createSnapshot, deleteSnapshot, restoreSnapshot, listSnapshots, uploadImage, deleteImage, listImages, uploadTemplate, downloadTemplate, deleteTemplate, listTemplates, encryptConfig, decryptConfig, encryptString`
   - sourceString: `source string to encrypt by encryptString operation`
   - passphrase: `passphrase to encrypt/decrypt passwords in configuration (default is machine ID)`
 

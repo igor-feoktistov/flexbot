@@ -288,9 +288,11 @@ func resourceFlexbotServer() *schema.Resource {
 										Optional: true,
 										ValidateFunc: func(val interface{}, key string) (warns []string, errs []error) {
 											v := val.(string)
-											matched, _ := regexp.MatchString(`^\d+\.\d+\.\d+\.\d+$`, v)
-											if !matched {
-												errs = append(errs, fmt.Errorf("value %q=%s must be in IP address format", key, v))
+											if len(v) > 0 {
+												matched, _ := regexp.MatchString(`^\d+\.\d+\.\d+\.\d+$`, v)
+												if !matched {
+													errs = append(errs, fmt.Errorf("value %q=%s must be in IP address format", key, v))
+												}
 											}
 											return
 										},
@@ -300,9 +302,11 @@ func resourceFlexbotServer() *schema.Resource {
 										Optional: true,
 										ValidateFunc: func(val interface{}, key string) (warns []string, errs []error) {
 											v := val.(string)
-											matched, _ := regexp.MatchString(`^\d+\.\d+\.\d+\.\d+$`, v)
-											if !matched {
-												errs = append(errs, fmt.Errorf("value %q=%s must be in IP address format", key, v))
+											if len(v) > 0 {
+												matched, _ := regexp.MatchString(`^\d+\.\d+\.\d+\.\d+$`, v)
+												if !matched {
+													errs = append(errs, fmt.Errorf("value %q=%s must be in IP address format", key, v))
+												}
 											}
 											return
 										},
@@ -312,9 +316,11 @@ func resourceFlexbotServer() *schema.Resource {
 										Optional: true,
 										ValidateFunc: func(val interface{}, key string) (warns []string, errs []error) {
 											v := val.(string)
-											matched, _ := regexp.MatchString(`^\d+\.\d+\.\d+\.\d+$`, v)
-											if !matched {
-												errs = append(errs, fmt.Errorf("value %q=%s must be in IP address format", key, v))
+											if len(v) > 0 {
+												matched, _ := regexp.MatchString(`^\d+\.\d+\.\d+\.\d+$`, v)
+												if !matched {
+													errs = append(errs, fmt.Errorf("value %q=%s must be in IP address format", key, v))
+												}
 											}
 											return
 										},

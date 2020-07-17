@@ -19,25 +19,36 @@ import (
 )
 
 const (
-	version = "1.2.1"
+	version = "1.3.0"
 )
 
+type OperationResult interface {
+	DumpResult(r interface{}, resultDest string, resultFormat string, resultErr error)
+}
+
+type BaseResult struct {
+	Status       string `yaml:"status" json:"status"`
+	ErrorMessage string `yaml:"errorMessage,omitempty" json:"errorMessage,omitempty"`
+}
+
 type NodeResult struct {
-	Status       string             `yaml:"status" json:"status"`
-	ErrorMessage string             `yaml:"errorMessage,omitempty" json:"errorMessage,omitempty"`
-	Node         *config.NodeConfig `yaml:"server,omitempty" json:"server,omitempty"`
+	BaseResult              `yaml:",inline" json:",inline"`
+	Node *config.NodeConfig `yaml:"server,omitempty" json:"server,omitempty"`
 }
 
 type ImageResult struct {
-	Status       string   `yaml:"status" json:"status"`
-	ErrorMessage string   `yaml:"errorMessage,omitempty" json:"errorMessage,omitempty"`
-	Images       []string `yaml:"images,omitempty" json:"images,omitempty"`
+	BaseResult      `yaml:",inline" json:",inline"`
+	Images []string `yaml:"images,omitempty" json:"images,omitempty"`
 }
 
 type TemplateResult struct {
-	Status       string   `yaml:"status" json:"status"`
-	ErrorMessage string   `yaml:"errorMessage,omitempty" json:"errorMessage,omitempty"`
-	Templates    []string `yaml:"templates,omitempty" json:"templates,omitempty"`
+	BaseResult         `yaml:",inline" json:",inline"`
+	Templates []string `yaml:"templates,omitempty" json:"templates,omitempty"`
+}
+
+type SnapshotResult struct {
+	BaseResult         `yaml:",inline" json:",inline"`
+	Snapshots []string `yaml:"snapshots,omitempty" json:"snapshots,omitempty"`
 }
 
 func Usage() {
@@ -46,12 +57,10 @@ func Usage() {
 	fmt.Printf("flexbot version %s %s/%s\n\n", version, goOS, goARCH)
 	flag.Usage()
 	fmt.Println("")
-	fmt.Printf("flexbot --config=<config file path> --op=provisionServer --host=<host node name> --image=<image name> --templatePath=<cloud-init template path>\n\n")
-	fmt.Printf("flexbot --config=<config file path> --op=stopServer --host=<host node name>\n\n")
-	fmt.Printf("flexbot --config=<config file path> --op=startServer --host=<host node name>\n\n")
-	fmt.Printf("flexbot --config=<config file path> --op=deprovisionServer --host=<host node name>\n\n")
-	fmt.Printf("flexbot --config=<config file path> --op=decryptConfig [--passphrase=<password phrase>]\n\n")
-	fmt.Printf("flexbot --config=<config file path> --op=encryptConfig [--passphrase=<password phrase>]\n\n")
+	fmt.Printf("flexbot --config=<config file path> --op=provisionServer --host=<host name> --image=<image name> --templatePath=<cloud-init template path>\n\n")
+	fmt.Printf("flexbot --config=<config file path> --op=stopServer --host=<host name>\n\n")
+	fmt.Printf("flexbot --config=<config file path> --op=startServer --host=<host name>\n\n")
+	fmt.Printf("flexbot --config=<config file path> --op=deprovisionServer --host=<host name>\n\n")
 	fmt.Printf("flexbot --config=<config file path> --op=uploadImage --image=<image name> --imagePath=<image path>\n\n")
 	fmt.Printf("flexbot --config=<config file path> --op=deleteImage --image=<image name>\n\n")
 	fmt.Printf("flexbot --config=<config file path> --op=listImages\n\n")
@@ -59,6 +68,12 @@ func Usage() {
 	fmt.Printf("flexbot --config=<config file path> --op=downloadTemplate --template=<template name>\n\n")
 	fmt.Printf("flexbot --config=<config file path> --op=deleteTemplate --template=<template name>\n\n")
 	fmt.Printf("flexbot --config=<config file path> --op=listTemplates\n\n")
+	fmt.Printf("flexbot --config=<config file path> --op=createSnapshot --host=<host name> --snapshot=<snapshot name>\n\n")
+	fmt.Printf("flexbot --config=<config file path> --op=deleteSnapshot --host=<host name> --snapshot=<snapshot name>\n\n")
+	fmt.Printf("flexbot --config=<config file path> --op=restoreSnapshot --host=<host name> --snapshot=<snapshot name>\n\n")
+	fmt.Printf("flexbot --config=<config file path> --op=listSnapshots --host=<host name>\n\n")
+	fmt.Printf("flexbot --config=<config file path> --op=decryptConfig [--passphrase=<password phrase>]\n\n")
+	fmt.Printf("flexbot --config=<config file path> --op=encryptConfig [--passphrase=<password phrase>]\n\n")
 	fmt.Printf("flexbot --op=encryptString --sourceString <string to encrypt> [--passphrase=<password phrase>]\n\n")
 	fmt.Printf("flexbot --version\n\n")
 }
@@ -79,6 +94,43 @@ func printProgess(done <-chan bool) {
 			fmt.Print(".")
 		}
 	}
+}
+
+func (result *BaseResult) DumpResult(r interface{}, resultDest string, resultFormat string, resultErr error) {
+	var b []byte
+	var err error
+	if resultErr == nil {
+		result.Status = "success"
+	} else {
+		result.Status = "failure"
+		result.ErrorMessage = resultErr.Error()
+	}
+	if resultFormat == "yaml" {
+		b, err = yaml.Marshal(r)
+	} else {
+		b, err = json.Marshal(r)
+	}
+	if err != nil {
+		panic("Failure to decode operation result: " + err.Error())
+	} else {
+		if resultDest == "STDOUT" {
+			fmt.Print(string(b))
+		} else {
+			if err = ioutil.WriteFile(resultDest, b, 0644); err != nil {
+				panic("Failure to write image result: " + err.Error())
+			}
+		}
+	}
+        return
+}
+
+func (result *NodeResult) DumpResult(r interface{}, resultDest string, resultFormat string, resultErr error) {
+	result.Node.Ipam.IbCredentials = config.InfobloxCredentials{}
+	result.Node.Storage.CdotCredentials = config.CdotCredentials{}
+	result.Node.Compute.UcsmCredentials = config.Credentials{}
+	result.Node.CloudArgs = map[string]string{}
+	result.BaseResult.DumpResult(r, resultDest, resultFormat, resultErr)
+	return
 }
 
 func ProvisionServer(nodeConfig *config.NodeConfig) (err error) {
@@ -220,13 +272,18 @@ func DeprovisionServer(nodeConfig *config.NodeConfig) (err error) {
 	return
 }
 
-func StopServer(nodeConfig *config.NodeConfig) (err error) {
-	err = ucsm.StopServer(nodeConfig)
-	return
-}
+func RestoreSnapshot(nodeConfig *config.NodeConfig, snapshotName string) (err error) {
+	var powerState string
 
-func StartServer(nodeConfig *config.NodeConfig) (err error) {
-	err = ucsm.StartServer(nodeConfig)
+	if powerState, err = ucsm.GetServerPowerState(nodeConfig); err != nil {
+		return
+	} else {
+		if powerState == "up" {
+			err = fmt.Errorf("RestoreSnapshot: cannot restore LUNs from snapshot, server \"%s\" has power state \"%s\"", nodeConfig.Compute.HostName, powerState)
+			return
+		}
+	}
+	err = ontap.RestoreSnapshot(nodeConfig, snapshotName)
 	return
 }
 
@@ -241,9 +298,6 @@ func UploadImage(nodeConfig *config.NodeConfig, imageName string, imagePath stri
 		outcome <- true
 	}
 	time.Sleep(1 * time.Second)
-	if err != nil {
-		fmt.Printf("\n%s\n", err)
-	}
 	return
 }
 
@@ -258,132 +312,7 @@ func UploadTemplate(nodeConfig *config.NodeConfig, templateName string, template
 		outcome <- true
 	}
 	time.Sleep(1 * time.Second)
-	if err != nil {
-		fmt.Printf("\n%s\n", err)
-	}
 	return
-}
-
-func DeleteImage(nodeConfig *config.NodeConfig, imageName string) (err error) {
-	fmt.Printf("Deleting image..")
-	if err = ontap.DeleteRepoImage(nodeConfig, imageName); err == nil {
-		fmt.Println("succes")
-	} else {
-		fmt.Println("failure")
-		fmt.Printf("\n%s\n", err)
-	}
-	return
-}
-
-func DeleteTemplate(nodeConfig *config.NodeConfig, templateName string) (err error) {
-	fmt.Printf("Deleting template..")
-	if err = ontap.DeleteRepoTemplate(nodeConfig, templateName); err == nil {
-		fmt.Println("succes")
-	} else {
-		fmt.Println("failure")
-		fmt.Printf("\n%s\n", err)
-	}
-	return
-}
-
-func DownloadTemplate(nodeConfig *config.NodeConfig, templateName string) (err error) {
-	var templateContent []byte
-	if templateContent, err = ontap.DownloadRepoTemplate(nodeConfig, templateName); err != nil {
-		panic("Failure to download template: " + err.Error())
-	}
-	fmt.Print(string(templateContent))
-	return
-}
-
-func DumpNodeResult(resultDest string, nodeConfig *config.NodeConfig, format string, resultErr error) {
-	var b []byte
-	var nodeResult NodeResult
-	var err error
-	nodeResult.Node = nodeConfig
-	nodeResult.Node.Ipam.IbCredentials = config.InfobloxCredentials{}
-	nodeResult.Node.Storage.CdotCredentials = config.CdotCredentials{}
-	nodeResult.Node.Compute.UcsmCredentials = config.Credentials{}
-	nodeResult.Node.CloudArgs = map[string]string{}
-	if resultErr == nil {
-		nodeResult.Status = "success"
-	} else {
-		nodeResult.Status = "failure"
-		nodeResult.ErrorMessage = resultErr.Error()
-	}
-	if format == "yaml" {
-		b, err = yaml.Marshal(nodeResult)
-	} else {
-		b, err = json.Marshal(nodeResult)
-	}
-	if err != nil {
-		panic("Failure to decode node result: " + err.Error())
-	} else {
-		if resultDest == "STDOUT" {
-			fmt.Print(string(b))
-		} else {
-			if err = ioutil.WriteFile(resultDest, b, 0644); err != nil {
-				panic("Failure to write node result: " + err.Error())
-			}
-		}
-	}
-}
-
-func DumpImageResult(resultDest string, images []string, format string, resultErr error) {
-	var b []byte
-	var err error
-	var imageResult ImageResult
-	imageResult.Images = images
-	if resultErr == nil {
-		imageResult.Status = "success"
-	} else {
-		imageResult.Status = "failure"
-		imageResult.ErrorMessage = resultErr.Error()
-	}
-	if format == "yaml" {
-		b, err = yaml.Marshal(imageResult)
-	} else {
-		b, err = json.Marshal(imageResult)
-	}
-	if err != nil {
-		panic("Failure to decode image result: " + err.Error())
-	} else {
-		if resultDest == "STDOUT" {
-			fmt.Print(string(b))
-		} else {
-			if err = ioutil.WriteFile(resultDest, b, 0644); err != nil {
-				panic("Failure to write image result: " + err.Error())
-			}
-		}
-	}
-}
-
-func DumpTemplateResult(resultDest string, templates []string, format string, resultErr error) {
-	var b []byte
-	var err error
-	var templateResult TemplateResult
-	templateResult.Templates = templates
-	if resultErr == nil {
-		templateResult.Status = "success"
-	} else {
-		templateResult.Status = "failure"
-		templateResult.ErrorMessage = resultErr.Error()
-	}
-	if format == "yaml" {
-		b, err = yaml.Marshal(templateResult)
-	} else {
-		b, err = json.Marshal(templateResult)
-	}
-	if err != nil {
-		panic("Failure to decode template result: " + err.Error())
-	} else {
-		if resultDest == "STDOUT" {
-			fmt.Print(string(b))
-		} else {
-			if err = ioutil.WriteFile(resultDest, b, 0644); err != nil {
-				panic("Failure to write template result: " + err.Error())
-			}
-		}
-	}
 }
 
 func DumpNodeConfig(configDest string, nodeConfig *config.NodeConfig, format string) {
@@ -426,10 +355,11 @@ func main() {
 	optImagePath := flag.String("imagePath", "", "a path to boot image (prefix can be either file:// or http(s)://)")
 	optTemplateName := flag.String("template", "", "cloud-init template name or path (prefix can be either file:// or http(s)://)")
 	optTemplatePath := flag.String("templatePath", "", "cloud-init template path (prefix can be either file:// or http(s)://)")
+	optSnapshotName := flag.String("snapshot", "", "volume snapshot name")
 	optPassPhrase := flag.String("passphrase", "", "passphrase to encrypt/decrypt passwords in configuration (default is machineid)")
 	optSourceString := flag.String("sourceString", "", "source string to encrypt")
 	optNodeConfig := flag.String("config", "STDIN", "a path to configuration file, STDIN, or argument value in JSON")
-	optOp := flag.String("op", "", "operation: \n\tprovisionServer\n\tdeprovisionServer\n\tstopServer\n\tstartServer\n\tuploadImage\n\tlistImages\n\tencryptConfig\n\tdecryptConfig\n\tencryptString")
+	optOp := flag.String("op", "", "operation: \n\tprovisionServer\n\tdeprovisionServer\n\tstopServer\n\tstartServer\n\tuploadImage\n\tdeleteImage\n\tlistImages\n\tuploadTemplate\n\tdownloadTemplate\n\tdeleteTemplate\n\tlistTemplates\n\tcreateSnapshot\n\tdeleteSnapshot\n\trestoreSnapshot\n\tlistSnapshots\n\tencryptConfig\n\tdecryptConfig\n\tencryptString")
 	optDumpResult := flag.String("dumpResult", "STDOUT", "dump result: file path or STDOUT")
 	optEncodingFormat := flag.String("encodingFormat", "yaml", "supported encoding formats: json, yaml")
 	optVersion := flag.Bool("version", false, "flexbot version")
@@ -442,174 +372,174 @@ func main() {
 	}
 	if *optPassPhrase == "" {
 		if passPhrase, err = machineid.ID(); err != nil {
-			return
+			err = fmt.Errorf("main() failure to get machine ID: %s", err)
+			panic(err.Error())
 		}
 	} else {
 		passPhrase = *optPassPhrase
 	}
-	if *optOp == "provisionServer" ||
-		*optOp == "deprovisionServer" ||
-		*optOp == "stopServer" ||
-		*optOp == "startServer" ||
-		*optOp == "uploadImage" ||
-		*optOp == "uploadTemplate" ||
-		*optOp == "downloadTemplate" ||
-		*optOp == "listImages" ||
-		*optOp == "listTemplates" ||
-		*optOp == "deleteImage" ||
-		*optOp == "deleteTemplate" ||
-		*optOp == "encryptConfig" ||
-		*optOp == "decryptConfig" {
+	if !(*optOp == "encryptString" || *optOp == "") {
 		if err = config.ParseNodeConfig(*optNodeConfig, &nodeConfig); err != nil {
+			err = fmt.Errorf("ParseNodeConfig() failure: %s", err)
+			panic(err.Error())
+		}
+		if err = config.SetDefaults(&nodeConfig, *optHostName, *optImageName, *optTemplateName, passPhrase); err != nil {
+			err = fmt.Errorf("SetDefaults() failure: %s", err)
 			panic(err.Error())
 		}
 	}
 	switch *optOp {
 	case "provisionServer":
-		if err = config.SetDefaults(&nodeConfig, *optHostName, *optImageName, *optTemplateName, passPhrase); err != nil {
-			err = fmt.Errorf("SetDefaults() failure: %s", err)
+		var nodeResult OperationResult = &NodeResult{Node: &nodeConfig}
+		if nodeConfig.Compute.HostName == "" || nodeConfig.Storage.BootLun.OsImage.Name == "" || nodeConfig.Storage.SeedLun.SeedTemplate.Location == "" {
+			err = fmt.Errorf("main() failure: expected compute.hostName, storage.bootLun.osImage.name, and storage.seedLun.seedTemplate.location")
 		} else {
-			if nodeConfig.Compute.HostName == "" || nodeConfig.Storage.BootLun.OsImage.Name == "" || nodeConfig.Storage.SeedLun.SeedTemplate.Location == "" {
-				err = fmt.Errorf("SetDefaults() failure: expected compute.hostName, storage.bootLun.osImage.name, and storage.seedLun.seedTemplate.location")
-			} else {
-				var serverExists bool
-				if serverExists, err = DiscoverServer(&nodeConfig); err == nil {
-					if serverExists == false {
-						if err = ProvisionServerPreflight(&nodeConfig); err == nil {
-							if err = ProvisionServer(&nodeConfig); err != nil {
-								DeprovisionServer(&nodeConfig)
-							}
+			var serverExists bool
+			if serverExists, err = DiscoverServer(&nodeConfig); err == nil {
+				if serverExists == false {
+					if err = ProvisionServerPreflight(&nodeConfig); err == nil {
+						if err = ProvisionServer(&nodeConfig); err != nil {
+							DeprovisionServer(&nodeConfig)
 						}
 					}
 				}
 			}
 		}
-		DumpNodeResult(*optDumpResult, &nodeConfig, *optEncodingFormat, err)
+		nodeResult.DumpResult(nodeResult, *optDumpResult, *optEncodingFormat, err)
 	case "deprovisionServer":
-		if err = config.SetDefaults(&nodeConfig, *optHostName, "", "", passPhrase); err != nil {
-			err = fmt.Errorf("SetDefaults() failure: %s", err)
+		var nodeResult OperationResult = &NodeResult{Node: &nodeConfig}
+		if nodeConfig.Compute.HostName == "" {
+			err = fmt.Errorf("main() failure: expected compute.hostName")
 		} else {
-			if nodeConfig.Compute.HostName == "" {
-				err = fmt.Errorf("SetDefaults() failure: expected compute.hostName")
-			} else {
-				err = DeprovisionServer(&nodeConfig)
-			}
+			err = DeprovisionServer(&nodeConfig)
 		}
-		DumpNodeResult(*optDumpResult, &nodeConfig, *optEncodingFormat, err)
+		nodeResult.DumpResult(nodeResult, *optDumpResult, *optEncodingFormat, err)
 	case "stopServer":
-		if err = config.SetDefaults(&nodeConfig, *optHostName, "", "", passPhrase); err != nil {
-			err = fmt.Errorf("SetDefaults() failure: %s", err)
+		var nodeResult OperationResult = &NodeResult{Node: &nodeConfig}
+		if nodeConfig.Compute.HostName == "" {
+			err = fmt.Errorf("main() failure: expected compute.hostName")
 		} else {
-			if nodeConfig.Compute.HostName == "" {
-				err = fmt.Errorf("SetDefaults() failure: expected compute.hostName")
-			} else {
-				err = StopServer(&nodeConfig)
-			}
+			err = ucsm.StopServer(&nodeConfig)
 		}
-		DumpNodeResult(*optDumpResult, &nodeConfig, *optEncodingFormat, err)
+		nodeResult.DumpResult(nodeResult, *optDumpResult, *optEncodingFormat, err)
 	case "startServer":
-		if err = config.SetDefaults(&nodeConfig, *optHostName, "", "", passPhrase); err != nil {
-			err = fmt.Errorf("SetDefaults() failure: %s", err)
+		var nodeResult OperationResult = &NodeResult{Node: &nodeConfig}
+		if nodeConfig.Compute.HostName == "" {
+			err = fmt.Errorf("main() failure: expected image name and image path")
 		} else {
-			if nodeConfig.Compute.HostName == "" {
-				err = fmt.Errorf("SetDefaults() failure: expected compute.hostName")
-			} else {
-				err = StartServer(&nodeConfig)
-			}
+			err = ucsm.StartServer(&nodeConfig)
 		}
-		DumpNodeResult(*optDumpResult, &nodeConfig, *optEncodingFormat, err)
+		nodeResult.DumpResult(nodeResult, *optDumpResult, *optEncodingFormat, err)
 	case "uploadImage":
+		var baseResult OperationResult = &BaseResult{}
 		if *optImageName == "" || *optImagePath == "" {
-			Usage()
-			return
-		}
-		if err = config.SetDefaults(&nodeConfig, *optHostName, "", "", passPhrase); err != nil {
-			err = fmt.Errorf("SetDefaults() failure: %s", err)
-			fmt.Printf("%s\n\n", err.Error())
+			err = fmt.Errorf("main() failure: expected image name and image path")
+			baseResult.DumpResult(baseResult, *optDumpResult, *optEncodingFormat, err)
 		} else {
-			UploadImage(&nodeConfig, *optImageName, *optImagePath)
+			if err = UploadImage(&nodeConfig, *optImageName, *optImagePath); err != nil {
+				baseResult.DumpResult(baseResult, *optDumpResult, *optEncodingFormat, err)
+			}
 		}
 	case "uploadTemplate":
+		var baseResult OperationResult = &BaseResult{}
 		if *optTemplateName == "" || *optTemplatePath == "" {
-			Usage()
-			return
-		}
-		if err = config.SetDefaults(&nodeConfig, *optHostName, "", "", passPhrase); err != nil {
-			err = fmt.Errorf("SetDefaults() failure: %s", err)
-			fmt.Printf("%s\n\n", err.Error())
+			err = fmt.Errorf("main() failure: expected template name and template path")
+			baseResult.DumpResult(baseResult, *optDumpResult, *optEncodingFormat, err)
 		} else {
-			UploadTemplate(&nodeConfig, *optTemplateName, *optTemplatePath)
+			if err = UploadTemplate(&nodeConfig, *optTemplateName, *optTemplatePath); err != nil {
+				baseResult.DumpResult(baseResult, *optDumpResult, *optEncodingFormat, err)
+			}
 		}
 	case "downloadTemplate":
+		var baseResult OperationResult = &BaseResult{}
+		var templateContent []byte
 		if *optTemplateName == "" {
-			Usage()
-			return
-		}
-		if err = config.SetDefaults(&nodeConfig, *optHostName, "", "", passPhrase); err != nil {
-			err = fmt.Errorf("SetDefaults() failure: %s", err)
-			fmt.Printf("%s\n\n", err.Error())
+			err = fmt.Errorf("main() failure: expected template name")
+			baseResult.DumpResult(baseResult, *optDumpResult, *optEncodingFormat, err)
 		} else {
-			DownloadTemplate(&nodeConfig, *optTemplateName)
+			if templateContent, err = ontap.DownloadRepoTemplate(&nodeConfig, *optTemplateName); err == nil {
+				fmt.Print(string(templateContent))
+			} else {
+				baseResult.DumpResult(baseResult, *optDumpResult, *optEncodingFormat, err)
+			}
 		}
 	case "deleteImage":
+		var baseResult OperationResult = &BaseResult{}
 		if *optImageName == "" {
-			Usage()
-			return
-		}
-		if err = config.SetDefaults(&nodeConfig, *optHostName, "", "", passPhrase); err != nil {
-			err = fmt.Errorf("SetDefaults() failure: %s", err)
-			fmt.Printf("%s\n\n", err.Error())
+			err = fmt.Errorf("main() failure: expected image name")
 		} else {
-			DeleteImage(&nodeConfig, *optImageName)
+			err = ontap.DeleteRepoImage(&nodeConfig, *optImageName)
 		}
+		baseResult.DumpResult(baseResult, *optDumpResult, *optEncodingFormat, err)
 	case "deleteTemplate":
+		var baseResult OperationResult = &BaseResult{}
 		if *optTemplateName == "" {
-			Usage()
-			return
-		}
-		if err = config.SetDefaults(&nodeConfig, *optHostName, "", "", passPhrase); err != nil {
-			err = fmt.Errorf("SetDefaults() failure: %s", err)
-			fmt.Printf("%s\n\n", err.Error())
+			err = fmt.Errorf("main() failure: expected template name")
 		} else {
-			DeleteTemplate(&nodeConfig, *optTemplateName)
+			err = ontap.DeleteRepoTemplate(&nodeConfig, *optTemplateName)
 		}
+		baseResult.DumpResult(baseResult, *optDumpResult, *optEncodingFormat, err)
+	case "createSnapshot":
+		var baseResult OperationResult = &BaseResult{}
+		if nodeConfig.Compute.HostName == "" || *optSnapshotName == "" {
+			err = fmt.Errorf("main() failure: expected compute.hostName and snapshot name")
+		} else {
+			err = ontap.CreateSnapshot(&nodeConfig, *optSnapshotName)
+		}
+		baseResult.DumpResult(baseResult, *optDumpResult, *optEncodingFormat, err)
+	case "deleteSnapshot":
+		var baseResult OperationResult = &BaseResult{}
+		if nodeConfig.Compute.HostName == "" || *optSnapshotName == "" {
+			err = fmt.Errorf("main() failure: expected compute.hostName and snapshot name")
+		} else {
+			err = ontap.DeleteSnapshot(&nodeConfig, *optSnapshotName)
+		}
+		baseResult.DumpResult(baseResult, *optDumpResult, *optEncodingFormat, err)
+	case "restoreSnapshot":
+		var baseResult OperationResult = &BaseResult{}
+		if nodeConfig.Compute.HostName == "" || *optSnapshotName == "" {
+			err = fmt.Errorf("main() failure: expected compute.hostName and snapshot name")
+		} else {
+			err = RestoreSnapshot(&nodeConfig, *optSnapshotName)
+		}
+		baseResult.DumpResult(baseResult, *optDumpResult, *optEncodingFormat, err)
 	case "listImages":
-		if err = config.SetDefaults(&nodeConfig, *optHostName, "", "", passPhrase); err != nil {
-			err = fmt.Errorf("SetDefaults() failure: %s", err)
-			fmt.Printf("%s\n\n", err.Error())
-		} else {
-			var images []string
-			images, err = ontap.GetRepoImages(&nodeConfig)
-			DumpImageResult("STDOUT", images, *optEncodingFormat, err)
-		}
+		var imageResult OperationResult = &ImageResult{}
+		imageResult.(*ImageResult).Images, err = ontap.GetRepoImages(&nodeConfig)
+		imageResult.DumpResult(imageResult, *optDumpResult, *optEncodingFormat, err)
 	case "listTemplates":
-		if err = config.SetDefaults(&nodeConfig, *optHostName, "", "", passPhrase); err != nil {
-			err = fmt.Errorf("SetDefaults() failure: %s", err)
-			fmt.Printf("%s\n\n", err.Error())
+		var templateResult OperationResult = &TemplateResult{}
+		templateResult.(*TemplateResult).Templates, err = ontap.GetRepoTemplates(&nodeConfig)
+		templateResult.DumpResult(templateResult, *optDumpResult, *optEncodingFormat, err)
+	case "listSnapshots":
+		var snapshotResult OperationResult = &SnapshotResult{}
+		if nodeConfig.Compute.HostName == "" {
+			err = fmt.Errorf("main() failure: expected compute.hostName")
 		} else {
-			var templates []string
-			templates, err = ontap.GetRepoTemplates(&nodeConfig)
-			DumpTemplateResult("STDOUT", templates, *optEncodingFormat, err)
+			snapshotResult.(*SnapshotResult).Snapshots, err = ontap.GetSnapshots(&nodeConfig)
 		}
+		snapshotResult.DumpResult(snapshotResult, *optDumpResult, *optEncodingFormat, err)
 	case "encryptConfig":
+		var baseResult OperationResult = &BaseResult{}
 		if err = config.EncryptNodeConfig(&nodeConfig, passPhrase); err == nil {
-			DumpNodeConfig("STDOUT", &nodeConfig, *optEncodingFormat)
+			DumpNodeConfig(*optDumpResult, &nodeConfig, *optEncodingFormat)
 		} else {
-			fmt.Printf("%s\n\n", err.Error())
+			baseResult.DumpResult(baseResult, *optDumpResult, *optEncodingFormat, err)
 		}
 	case "decryptConfig":
+		var baseResult OperationResult = &BaseResult{}
 		if err = config.DecryptNodeConfig(&nodeConfig, passPhrase); err == nil {
 			DumpNodeConfig("STDOUT", &nodeConfig, *optEncodingFormat)
 		} else {
-			fmt.Printf("%s\n\n", err.Error())
+			baseResult.DumpResult(baseResult, *optDumpResult, *optEncodingFormat, err)
 		}
 	case "encryptString":
+		var baseResult OperationResult = &BaseResult{}
 		var encrypted string
 		if encrypted, err = EncryptString(*optSourceString, passPhrase); err == nil {
 			fmt.Println(encrypted)
 		} else {
-			fmt.Printf("%s\n\n", err.Error())
-			Usage()
+			baseResult.DumpResult(baseResult, *optDumpResult, *optEncodingFormat, err)
 		}
 	default:
 		Usage()

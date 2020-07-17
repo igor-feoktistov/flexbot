@@ -209,6 +209,8 @@ github.com/igor-feoktistov/go-ontap-sdk v0.0.0-20200520221657-0c35d124cb7e h1:Vr
 github.com/igor-feoktistov/go-ontap-sdk v0.0.0-20200520221657-0c35d124cb7e/go.mod h1:oOr8HpXRFz2R8XSZ5vRoNCoScHqGbe2ze1BrxcCohcE=
 github.com/igor-feoktistov/go-ontap-sdk v0.0.0-20200612170031-9aa97e93c143 h1:IUlk41lNmZGeIiq4AmbyvYdWWt2buPStiFc6PEk0csg=
 github.com/igor-feoktistov/go-ontap-sdk v0.0.0-20200612170031-9aa97e93c143/go.mod h1:oOr8HpXRFz2R8XSZ5vRoNCoScHqGbe2ze1BrxcCohcE=
+github.com/igor-feoktistov/go-ontap-sdk v0.0.0-20200617012018-b98da3bc2dea h1:lRlpAPBx/it9K08/KgNWAdGixQybLvHfbcrTU8sLu7Y=
+github.com/igor-feoktistov/go-ontap-sdk v0.0.0-20200617012018-b98da3bc2dea/go.mod h1:oOr8HpXRFz2R8XSZ5vRoNCoScHqGbe2ze1BrxcCohcE=
 github.com/igor-feoktistov/go-ucsm-sdk v0.0.0-20200520224553-145dfd305473 h1:PXCiFhTl210WD0HLIhkxNrIIShR+9fO54RZzSetZnuU=
 github.com/igor-feoktistov/go-ucsm-sdk v0.0.0-20200520224553-145dfd305473/go.mod h1:4mJNNQkZ0NRrVHsO/7lRbNLvt/x0cZYIbaJ/+Is2UCE=
 github.com/infobloxopen/infoblox-go-client v1.1.0 h1:fw8q8USnngsoZxLploJ0LomBN+1SAhSyEjUZrSibKX4=

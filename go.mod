@@ -6,7 +6,7 @@ require (
 	github.com/denisbrodbeck/machineid v1.0.1
 	github.com/google/uuid v1.1.1
 	github.com/hashicorp/terraform v0.12.25
-	github.com/igor-feoktistov/go-ontap-sdk v0.0.0-20200612170031-9aa97e93c143
+	github.com/igor-feoktistov/go-ontap-sdk v0.0.0-20200617012018-b98da3bc2dea
 	github.com/igor-feoktistov/go-ucsm-sdk v0.0.0-20200520224553-145dfd305473
 	github.com/infobloxopen/infoblox-go-client v1.1.0
 	github.com/kdomanski/iso9660 v0.0.0-20200519215215-812ccb67a0ab

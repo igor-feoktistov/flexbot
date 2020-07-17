@@ -13,6 +13,7 @@ func Provider() terraform.ResourceProvider {
 			"pass_phrase": {
 				Type:     schema.TypeString,
 				Optional: true,
+				Sensitive: true,
 			},
 			"ipam": {
 				Type:     schema.TypeList,
@@ -48,6 +49,7 @@ func Provider() terraform.ResourceProvider {
 									"password": {
 										Type:     schema.TypeString,
 										Required: true,
+										Sensitive: true,
 									},
 									"wapi_version": {
 										Type:     schema.TypeString,
@@ -94,6 +96,7 @@ func Provider() terraform.ResourceProvider {
 									"password": {
 										Type:     schema.TypeString,
 										Required: true,
+										Sensitive: true,
 									},
 								},
 							},
@@ -124,6 +127,7 @@ func Provider() terraform.ResourceProvider {
 									"password": {
 										Type:     schema.TypeString,
 										Required: true,
+										Sensitive: true,
 									},
 									"zapi_version": {
 										Type:     schema.TypeString,
