@@ -382,7 +382,7 @@ func GetServerPowerState(nodeConfig *config.NodeConfig) (powerState string, err 
 	var client *api.Client
 	spDn := nodeConfig.Compute.SpOrg + "/ls-" + nodeConfig.Compute.HostName
 	if client, err = util.AaaLogin("https://"+nodeConfig.Compute.UcsmCredentials.Host+"/", nodeConfig.Compute.UcsmCredentials.User, nodeConfig.Compute.UcsmCredentials.Password); err != nil {
-		err = fmt.Errorf("DeleteServer: AaaLogin() failure: %s", err)
+		err = fmt.Errorf("GetServerPowerState: AaaLogin() failure: %s", err)
 		return
 	}
 	defer client.AaaLogout()
