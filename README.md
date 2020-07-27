@@ -20,13 +20,13 @@ Also available as a terraform provider (see [terraform](./terraform)).
  - Power On server:\
    ```flexbot --config=<config file path> --op=startServer --host=<host name>```
 
- - Create storage snapshot:\
+ - Create cDOT snapshot:\
    ```flexbot --config=<config file path> --op=createSnapshot --host=<host name> --snapshot=<snapshost name>```
 
- - Delete storage snapshot:\
+ - Delete cDOT snapshot:\
    ```flexbot --config=<config file path> --op=deleteSnapshot --host=<host name> --snapshot=<snapshost name>```
 
- - Restore host from storage snapshot:\
+ - Restore host from cDOT snapshot:\
    ```flexbot --config=<config file path> --op=restoreSnapshot --host=<host name> --snapshot=<snapshost name>```
 
  - List of available storage snapshots:\

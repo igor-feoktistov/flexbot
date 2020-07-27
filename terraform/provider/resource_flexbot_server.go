@@ -6,8 +6,10 @@ import (
 	"net"
 	"regexp"
 	"strings"
+	"bytes"
 	"sync"
 	"time"
+	"golang.org/x/crypto/ssh"
 
 	"flexbot/pkg/config"
 	"flexbot/pkg/ipam"
@@ -58,6 +60,16 @@ func resourceFlexbotServer() *schema.Resource {
 							Type:     schema.TypeInt,
 							Optional: true,
 							Default:  0,
+						},
+						"ssh_user": {
+							Type:     schema.TypeString,
+							Optional: true,
+							Default:  "",
+						},
+						"ssh_private_key": {
+							Type:     schema.TypeString,
+							Optional: true,
+							Default:  "",
 						},
 						"blade_spec": {
 							Type:     schema.TypeList,
@@ -448,6 +460,23 @@ func resourceFlexbotServer() *schema.Resource {
 				Optional: true,
 				Elem:     &schema.Schema{Type: schema.TypeString},
 			},
+			"snapshot": {
+				Type:     schema.TypeList,
+				Optional: true,
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"name": {
+							Type:     schema.TypeString,
+							Required: true,
+						},
+						"fsfreeze": {
+							Type:     schema.TypeBool,
+							Optional: true,
+							Default:  false,
+						},
+					},
+				},
+			},
 		},
 		Create: resourceCreateServer,
 		Read:   resourceReadServer,
@@ -460,10 +489,27 @@ func resourceFlexbotServer() *schema.Resource {
 }
 
 func resourceCreateServer(d *schema.ResourceData, meta interface{}) (err error) {
-	p := meta.(*schema.ResourceData)
 	var nodeConfig *config.NodeConfig
+
+	p := meta.(*schema.ResourceData)
 	if nodeConfig, err = setFlexbotInput(d, p); err != nil {
 		return
+	}
+	compute := d.Get("compute").([]interface{})[0].(map[string]interface{})
+	sshUser := compute["ssh_user"].(string)
+	sshPrivateKey := compute["ssh_private_key"].(string)
+	for _, snapshot := range d.Get("snapshot").([]interface{}) {
+		name := snapshot.(map[string]interface{})["name"].(string)
+		if snapshot.(map[string]interface{})["fsfreeze"].(bool) {
+			if compute["wait_for_ssh_timeout"].(int) == 0 {
+				err = fmt.Errorf("resourceCreateServer(): expected \"compute.wait_for_ssh_timeout\" parameter to ensure fsfreeze for snapshot \"%s\"", name)
+				return
+			}
+			if len(sshUser) == 0 || len(sshPrivateKey) == 0 {
+				err = fmt.Errorf("resourceCreateServer(): expected \"compute.ssh_user\" and \"compute.ssh_private_key\" parameters to ensure fsfreeze for snapshot \"%s\"", name)
+				return
+			}
+		}
 	}
 	log.Printf("[INFO] Creating Server %s", nodeConfig.Compute.HostName)
 	var serverExists bool
@@ -471,7 +517,7 @@ func resourceCreateServer(d *schema.ResourceData, meta interface{}) (err error) 
 		return
 	}
 	if serverExists {
-		err = fmt.Errorf("resourceCreateServer: serverServer \"%s\" already exists", nodeConfig.Compute.HostName)
+		err = fmt.Errorf("resourceCreateServer(): serverServer \"%s\" already exists", nodeConfig.Compute.HostName)
 		return
 	}
 	var provider ipam.IpamProvider
@@ -481,7 +527,7 @@ func resourceCreateServer(d *schema.ResourceData, meta interface{}) (err error) 
 	case "Internal":
 		provider = ipam.NewInternalProvider(&nodeConfig.Ipam)
 	default:
-		err = fmt.Errorf("resourceCreateServer: IPAM provider \"%s\" is not implemented", nodeConfig.Ipam.Provider)
+		err = fmt.Errorf("resourceCreateServer(): IPAM provider \"%s\" is not implemented", nodeConfig.Ipam.Provider)
 		return
 	}
 	var preflightErr error
@@ -503,35 +549,37 @@ func resourceCreateServer(d *schema.ResourceData, meta interface{}) (err error) 
 		preflightErrMsg = append(preflightErrMsg, preflightErr.Error())
 	}
 	if len(preflightErrMsg) > 0 {
-		err = fmt.Errorf("resourceCreateServer: %s", strings.Join(preflightErrMsg, "\n"))
+		err = fmt.Errorf("resourceCreateServer(): %s", strings.Join(preflightErrMsg, "\n"))
 		return
 	}
 	if err = provider.Allocate(nodeConfig); err != nil {
+		err = fmt.Errorf("resourceCreateServer(): %s", err)
 		return
 	}
-	if err = ontap.CreateBootStorage(nodeConfig); err != nil {
-		return
+	if err = ontap.CreateBootStorage(nodeConfig); err == nil {
+		_, err = ucsm.CreateServer(nodeConfig)
 	}
-	if _, err = ucsm.CreateServer(nodeConfig); err != nil {
-		return
+	if err == nil {
+		err = ontap.CreateSeedStorage(nodeConfig)
 	}
-	if err = ontap.CreateSeedStorage(nodeConfig); err != nil {
-		return
-	}
-	if err = ucsm.StartServer(nodeConfig); err != nil {
-		return
+	if err == nil {
+		err = ucsm.StartServer(nodeConfig)
 	}
 	d.SetId(nodeConfig.Compute.HostName)
-	d.SetConnInfo(map[string]string{
-		"type": "ssh",
-		"host": nodeConfig.Network.Node[0].Ip,
-	})
-	compute := d.Get("compute").([]interface{})[0].(map[string]interface{})
-	if compute["wait_for_ssh_timeout"].(int) > 0 {
+	if err == nil {
+		d.SetConnInfo(map[string]string{
+			"type": "ssh",
+			"host": nodeConfig.Network.Node[0].Ip,
+		})
+	}
+	if compute["wait_for_ssh_timeout"].(int) > 0 && err == nil {
 		giveupTime := time.Now().Add(time.Second * time.Duration(compute["wait_for_ssh_timeout"].(int)))
 		restartTime := time.Now().Add(time.Second * 600)
 		for time.Now().Before(giveupTime) {
 			if checkSshListen(nodeConfig.Network.Node[0].Ip) {
+				if len(sshUser) > 0 && len(sshPrivateKey) > 0 {
+					err = checkSshCommand(nodeConfig.Network.Node[0].Ip, sshUser, sshPrivateKey)
+				}
 				break
 			}
 			time.Sleep(1 * time.Second)
@@ -541,6 +589,22 @@ func resourceCreateServer(d *schema.ResourceData, meta interface{}) (err error) 
 				restartTime = time.Now().Add(time.Second * 600)
 			}
 		}
+	}
+	if err == nil {
+		for _, snapshot := range d.Get("snapshot").([]interface{}) {
+			name := snapshot.(map[string]interface{})["name"].(string)
+			if snapshot.(map[string]interface{})["fsfreeze"].(bool) {
+				err = createSnapshot(nodeConfig, sshUser, sshPrivateKey, name)
+			} else {
+				err = ontap.CreateSnapshot(nodeConfig, name)
+			}
+			if err != nil {
+				break
+			}
+		}
+	}
+	if err != nil {
+		err = fmt.Errorf("resourceCreateServer(): %s", err)
 	}
 	setFlexbotOutput(d, nodeConfig)
 	return
@@ -565,7 +629,7 @@ func resourceReadServer(d *schema.ResourceData, meta interface{}) (err error) {
 		case "Internal":
 			provider = ipam.NewInternalProvider(&nodeConfig.Ipam)
 		default:
-			err = fmt.Errorf("resourceReadServer: IPAM provider \"%s\" is not implemented", nodeConfig.Ipam.Provider)
+			err = fmt.Errorf("resourceReadServer(): IPAM provider \"%s\" is not implemented", nodeConfig.Ipam.Provider)
 			return
 		}
 		if err = provider.Discover(nodeConfig); err != nil {
@@ -610,6 +674,53 @@ func resourceUpdateServer(d *schema.ResourceData, meta interface{}) (err error) 
 			}
 		}
 	}
+	if d.HasChange("snapshot") && !d.IsNewResource() {
+		var oldSnapState, newSnapState, snapStateInter, snapStorage []string
+		compute := d.Get("compute").([]interface{})[0].(map[string]interface{})
+		sshUser := compute["ssh_user"].(string)
+		sshPrivateKey := compute["ssh_private_key"].(string)
+		oldSnapshot, newSnapshot := d.GetChange("snapshot")
+		for _, snapshot := range oldSnapshot.([]interface{}) {
+			oldSnapState = append(oldSnapState, snapshot.(map[string]interface{})["name"].(string))
+		}
+		for _, snapshot := range newSnapshot.([]interface{}) {
+			newSnapState = append(newSnapState, snapshot.(map[string]interface{})["name"].(string))
+		}
+		snapStateInter = stringSliceIntersection(oldSnapState, newSnapState)
+		if snapStorage, err = ontap.GetSnapshots(nodeConfig); err != nil {
+			err = fmt.Errorf("resourceUpdateServer(): %s", err)
+			return
+		}
+		for _, name := range oldSnapState {
+			if stringSliceElementExists(snapStorage, name) && !stringSliceElementExists(snapStateInter, name) {
+				if err = ontap.DeleteSnapshot(nodeConfig, name); err != nil {
+					err = fmt.Errorf("resourceUpdateServer(): %s", err)
+					return
+				}
+			}
+		}
+		for _, name := range newSnapState {
+			if !stringSliceElementExists(snapStorage, name) && !stringSliceElementExists(snapStateInter, name) {
+				for _, snapshot := range newSnapshot.([]interface{}) {
+					if snapshot.(map[string]interface{})["name"].(string) == name {
+						if snapshot.(map[string]interface{})["fsfreeze"].(bool) {
+							if len(sshUser) > 0 && len(sshPrivateKey) > 0 {
+								err = createSnapshot(nodeConfig, sshUser, sshPrivateKey, name)
+							} else {
+								err = fmt.Errorf("expected \"compute.ssh_user\" and \"compute.ssh_private_key\" parameters to ensure fsfreeze for snapshot \"%s\"", name)
+							}
+						} else {
+							err = ontap.CreateSnapshot(nodeConfig, name)
+						}
+						if err != nil {
+							err = fmt.Errorf("resourceUpdateServer(): %s", err)
+							return
+						}
+					}
+				}
+			}
+		}
+	}
 	return
 }
 
@@ -626,7 +737,7 @@ func resourceDeleteServer(d *schema.ResourceData, meta interface{}) (err error) 
 		return
 	}
 	if powerState == "up" && compute["safe_removal"].(bool) {
-		err = fmt.Errorf("resourceDeleteServer: server \"%s\" has power state \"up\"", nodeConfig.Compute.HostName)
+		err = fmt.Errorf("resourceDeleteServer(): server \"%s\" has power state \"up\"", nodeConfig.Compute.HostName)
 		return
 	} else {
 		if powerState == "up" {
@@ -652,7 +763,7 @@ func resourceDeleteServer(d *schema.ResourceData, meta interface{}) (err error) 
 	case "Internal":
 		provider = ipam.NewInternalProvider(&nodeConfig.Ipam)
 	default:
-		err = fmt.Errorf("resourceDeleteServer: IPAM provider \"%s\" is not implemented", nodeConfig.Ipam.Provider)
+		err = fmt.Errorf("resourceDeleteServer(): IPAM provider \"%s\" is not implemented", nodeConfig.Ipam.Provider)
 		return
 	}
 	stepErr = provider.Release(nodeConfig)
@@ -660,7 +771,7 @@ func resourceDeleteServer(d *schema.ResourceData, meta interface{}) (err error) 
 		stepErrMsg = append(stepErrMsg, stepErr.Error())
 	}
 	if len(stepErrMsg) > 0 {
-		err = fmt.Errorf("resourceDeleteServer: %s", strings.Join(stepErrMsg, "\n"))
+		err = fmt.Errorf("resourceDeleteServer(): %s", strings.Join(stepErrMsg, "\n"))
 	}
 	return
 }
@@ -761,7 +872,7 @@ func setFlexbotInput(d *schema.ResourceData, p *schema.ResourceData) (*config.No
 		}
 	}
 	if err = config.SetDefaults(&nodeConfig, compute["hostname"].(string), bootLun["os_image"].(string), seedLun["seed_template"].(string), passPhrase); err != nil {
-		err = fmt.Errorf("SetDefaults() failure: %s", err)
+		err = fmt.Errorf("SetDefaults(): failure: %s", err)
 	}
 	return &nodeConfig, err
 }
@@ -840,4 +951,131 @@ func checkSshListen(host string) (listen bool) {
 		conn.Close()
 	}
 	return
+}
+
+func checkSshCommand(host string, sshUser string, sshPrivateKey string) (err error) {
+	var signer ssh.Signer
+	var conn *ssh.Client
+	var sess *ssh.Session
+
+	if signer, err = ssh.ParsePrivateKey([]byte(sshPrivateKey)); err != nil {
+		return
+	}
+	config := &ssh.ClientConfig {
+		User: sshUser,
+		Auth: []ssh.AuthMethod {
+			ssh.PublicKeys(signer),
+		},
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+	}
+	if conn, err = ssh.Dial("tcp", host + ":22", config); err != nil {
+		return
+	}
+	defer conn.Close()
+	if sess, err = conn.NewSession(); err != nil {
+		return
+	}
+	err = sess.Run("uname -a")
+	sess.Close()
+	return
+}
+
+func createSnapshot(nodeConfig *config.NodeConfig, sshUser string, sshPrivateKey string, snapshotName string) (err error) {
+	var filesystems, cmd, errs []string
+	var signer ssh.Signer
+	var conn *ssh.Client
+	var sess *ssh.Session
+	var b_stdout, b_stderr bytes.Buffer
+
+	if signer, err = ssh.ParsePrivateKey([]byte(sshPrivateKey)); err != nil {
+		err = fmt.Errorf("createSnapshot(): failed to parse SSH private key: %s", err)
+		return
+	}
+	config := &ssh.ClientConfig {
+		User: sshUser,
+		Auth: []ssh.AuthMethod {
+			ssh.PublicKeys(signer),
+		},
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+	}
+	if conn, err = ssh.Dial("tcp", nodeConfig.Network.Node[0].Ip + ":22", config); err != nil {
+		err = fmt.Errorf("createSnapshot(): failed to connect to host %s: %s", nodeConfig.Network.Node[0].Ip, err)
+		return
+	}
+	defer conn.Close()
+	if sess, err = conn.NewSession(); err != nil {
+		err = fmt.Errorf("createSnapshot(): failed to create SSH session: %s", err)
+		return
+	}
+	sess.Stdout = &b_stdout
+	sess.Stderr = &b_stderr
+	err = sess.Run(`cat /proc/mounts | sed -n 's/^\/dev\/mapper\/[^ ]\+[ ]\+\(\/[^ ]\{1,64\}\).*/\1/p'`)
+	sess.Close()
+	if err != nil {
+		err = fmt.Errorf("createSnapshot(): failed to run command: %s: %s", err, b_stderr.String())
+		return
+	}
+	if b_stdout.Len() > 0 {
+		filesystems = strings.Split(strings.Trim(b_stdout.String(), "\n"), "\n")
+	}
+	for _, fs := range filesystems {
+		cmd = append(cmd, "fsfreeze -f " + fs)
+	}
+	cmd = append(cmd, "fsfreeze -f / && echo -n frozen && sleep 5 && fsfreeze -u /")
+	for _, fs := range filesystems {
+		cmd = append(cmd, "fsfreeze -u " + fs)
+	}
+	if sess, err = conn.NewSession(); err != nil {
+		err = fmt.Errorf("createSnapshot(): failed to create SSH session: %s", err)
+		return
+	}
+	defer sess.Close()
+	b_stdout.Reset()
+	b_stderr.Reset()
+	sess.Stdout = &b_stdout
+	sess.Stderr = &b_stderr
+	if err = sess.Start(fmt.Sprintf(`sudo -n sh -c '%s'`, strings.Join(cmd, " && "))); err != nil {
+		err = fmt.Errorf("createSnapshot(): failed to start SSH command: %s", err)
+		return
+	}
+	for i := 0; i < 10; i++ {
+		if b_stdout.Len() > 0 {
+			break
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+	if b_stdout.String() == "frozen" {
+		if err = ontap.CreateSnapshot(nodeConfig, snapshotName); err != nil {
+			errs = append(errs, err.Error())
+		}
+	}
+	if err = sess.Wait(); err != nil {
+		errs = append(errs, fmt.Sprintf("failed to run SSH command: %s: %s", err, b_stderr.String()))
+	}
+	if err != nil {
+		err = fmt.Errorf("createSnapshot(): %s", strings.Join(errs, " , "))
+	}
+	return
+}
+
+func stringSliceIntersection(src1, src2 []string) (dst []string) {
+	hash := make(map[string]bool)
+	for _, e := range src1 {
+		hash[e] = true
+	}
+	for _, e := range src2 {
+		if hash[e] {
+			dst = append(dst, e)
+		}
+	}
+	return
+}
+
+func stringSliceElementExists(array []string, elem string) (bool) {
+	for _, e := range array {
+		if e == elem {
+			return true
+		}
+	}
+	return false
 }

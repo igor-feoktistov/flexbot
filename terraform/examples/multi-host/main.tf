@@ -1,4 +1,5 @@
 provider "flexbot" {
+  pass_phrase = var.pass_phrase
   ipam {
     provider = "Infoblox"
     credentials {
@@ -23,6 +24,7 @@ provider "flexbot" {
       host = var.flexbot_credentials.cdot.host
       user = var.flexbot_credentials.cdot.user
       password = var.flexbot_credentials.cdot.password
+      zapi_version = var.zapi_version
     }
   }
 }
@@ -42,6 +44,8 @@ resource "flexbot_server" "host" {
     }
     safe_removal = false
     wait_for_ssh_timeout = 1800
+    ssh_user = var.node_compute_config.ssh_user
+    ssh_private_key = file(var.node_compute_config.ssh_private_key)
   }
   # cDOT storage
   storage {
@@ -59,26 +63,50 @@ resource "flexbot_server" "host" {
   # Compute network
   network {
     # General use interfaces (list)
-    node {
-      name = var.node_network_config.node1.if_name
-      subnet = var.node_network_config.node1.subnet
-      gateway = var.node_network_config.node1.gateway
-      dns_server1 = var.node_network_config.node1.dns_server1
-      dns_domain = var.node_network_config.node1.dns_domain
+    dynamic "node" {
+      for_each = [for node in var.node_network_config.node: {
+        name = node.name
+        subnet = node.subnet
+        gateway = node.gateway
+        dns_server1 = node.dns_server1
+        dns_server2 = node.dns_server2
+        dns_domain = node.dns_domain
+      }]
+      content {
+        name = node.value.name
+        subnet = node.value.subnet
+        gateway = node.value.gateway
+        dns_server1 = node.value.dns_server1
+        dns_server2 = node.value.dns_server2
+        dns_domain = node.value.dns_domain
+      }
     }
     # iSCSI initiator networks (list)
-    iscsi_initiator {
-      name = var.node_network_config.iscsi1.if_name
-      subnet = var.node_network_config.iscsi1.subnet
+    dynamic "iscsi_initiator" {
+      for_each = [for iscsi_initiator in var.node_network_config.iscsi_initiator: {
+        name = iscsi_initiator.name
+        subnet = iscsi_initiator.subnet
+      }]
+      content {
+        name = iscsi_initiator.value.name
+        subnet = iscsi_initiator.value.subnet
+      }
     }
-    iscsi_initiator {
-      name = var.node_network_config.iscsi2.if_name
-      subnet = var.node_network_config.iscsi2.subnet
+  }
+  # Storage snapshots
+  dynamic "snapshot" {
+    for_each = [for snapshot in var.snapshots: {
+      name = snapshot.name
+      fsfreeze = snapshot.fsfreeze
+    }]
+    content {
+      name = snapshot.value.name
+      fsfreeze = snapshot.value.fsfreeze
     }
   }
   # Arguments for cloud-init template
   cloud_args = {
-    cloud_user = "cloud-user"
-    ssh_pub_key = file(var.node_compute_config.ssh_public_key_path)
+    cloud_user = var.node_compute_config.ssh_user
+    ssh_pub_key = file(var.node_compute_config.ssh_public_key)
   }
 }

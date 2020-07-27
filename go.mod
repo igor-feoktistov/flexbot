@@ -13,6 +13,7 @@ require (
 	github.com/onsi/ginkgo v1.12.2 // indirect
 	github.com/rasky/go-xdr v0.0.0-20170124162913-1a41d1a06c93 // indirect
 	github.com/vmware/go-nfs-client v0.0.0-20190605212624-d43b92724c1b // indirect
+	golang.org/x/crypto v0.0.0-20200510223506-06a226fb4e37
 	golang.org/x/sys v0.0.0-20200519105757-fe76b779f299
 	gopkg.in/djherbis/times.v1 v1.2.0
 	gopkg.in/yaml.v3 v3.0.0-20200506231410-2ff61e1afc86

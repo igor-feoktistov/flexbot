@@ -7,8 +7,8 @@ Make sure to update respective `terraform.tfvars` files with your own infrastruc
 
 * [simple](./simple) Simple configuration with a lot of comments.
 * [multi-host](./multi-host) Provisions multiple servers the same configuration in one shot.
-* [rancher-flexbot](./rancher-flexbot) Provisions Rancher workload cluster.
-* [rke-flexbot](./rke-flexbot) Provisions Rancher RKE cluster (use case - to run Rancher Management Plane).
+* [rancher-server-flexbot](./rancher-server-flexbot) Provisions Rancher Server on top of RKE cluster.
+* [rancher-workload-cluster-flexbot](./rancher-workload-cluster-flexbot) Provisions Rancher workload cluster.
 
 ### Note
 You can easily adapt the examples with IPAM provider via Terraform.

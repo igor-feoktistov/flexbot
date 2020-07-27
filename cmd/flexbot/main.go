@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	version = "1.3.0"
+	version = "1.3.1"
 )
 
 type OperationResult interface {
@@ -51,7 +51,7 @@ type SnapshotResult struct {
 	Snapshots []string `yaml:"snapshots,omitempty" json:"snapshots,omitempty"`
 }
 
-func Usage() {
+func usage() {
 	goOS := runtime.GOOS
 	goARCH := runtime.GOARCH
 	fmt.Printf("flexbot version %s %s/%s\n\n", version, goOS, goARCH)
@@ -133,7 +133,7 @@ func (result *NodeResult) DumpResult(r interface{}, resultDest string, resultFor
 	return
 }
 
-func ProvisionServer(nodeConfig *config.NodeConfig) (err error) {
+func provisionServer(nodeConfig *config.NodeConfig) (err error) {
 	var provider ipam.IpamProvider
 	switch nodeConfig.Ipam.Provider {
 	case "Infoblox":
@@ -162,7 +162,7 @@ func ProvisionServer(nodeConfig *config.NodeConfig) (err error) {
 	return
 }
 
-func DiscoverServer(nodeConfig *config.NodeConfig) (serverExists bool, err error) {
+func discoverServer(nodeConfig *config.NodeConfig) (serverExists bool, err error) {
 	if serverExists, err = ucsm.DiscoverServer(nodeConfig); err != nil {
 		return
 	}
@@ -184,7 +184,7 @@ func DiscoverServer(nodeConfig *config.NodeConfig) (serverExists bool, err error
 	return
 }
 
-func ProvisionServerPreflight(nodeConfig *config.NodeConfig) (err error) {
+func provisionServerPreflight(nodeConfig *config.NodeConfig) (err error) {
 	var provider ipam.IpamProvider
 	var stepErr error
 	switch nodeConfig.Ipam.Provider {
@@ -226,7 +226,7 @@ func ProvisionServerPreflight(nodeConfig *config.NodeConfig) (err error) {
 	return
 }
 
-func DeprovisionServer(nodeConfig *config.NodeConfig) (err error) {
+func deprovisionServer(nodeConfig *config.NodeConfig) (err error) {
 	var provider ipam.IpamProvider
 	var stepErr error
 	var powerState string
@@ -272,7 +272,7 @@ func DeprovisionServer(nodeConfig *config.NodeConfig) (err error) {
 	return
 }
 
-func RestoreSnapshot(nodeConfig *config.NodeConfig, snapshotName string) (err error) {
+func restoreSnapshot(nodeConfig *config.NodeConfig, snapshotName string) (err error) {
 	var powerState string
 
 	if powerState, err = ucsm.GetServerPowerState(nodeConfig); err != nil {
@@ -287,7 +287,7 @@ func RestoreSnapshot(nodeConfig *config.NodeConfig, snapshotName string) (err er
 	return
 }
 
-func UploadImage(nodeConfig *config.NodeConfig, imageName string, imagePath string) (err error) {
+func uploadImage(nodeConfig *config.NodeConfig, imageName string, imagePath string) (err error) {
 	outcome := make(chan bool)
 	defer close(outcome)
 	fmt.Printf("Uploading image..")
@@ -301,7 +301,7 @@ func UploadImage(nodeConfig *config.NodeConfig, imageName string, imagePath stri
 	return
 }
 
-func UploadTemplate(nodeConfig *config.NodeConfig, templateName string, templatePath string) (err error) {
+func uploadTemplate(nodeConfig *config.NodeConfig, templateName string, templatePath string) (err error) {
 	outcome := make(chan bool)
 	defer close(outcome)
 	fmt.Printf("Uploading template..")
@@ -315,7 +315,7 @@ func UploadTemplate(nodeConfig *config.NodeConfig, templateName string, template
 	return
 }
 
-func DumpNodeConfig(configDest string, nodeConfig *config.NodeConfig, format string) {
+func dumpNodeConfig(configDest string, nodeConfig *config.NodeConfig, format string) {
 	var b []byte
 	var err error
 	if format == "yaml" {
@@ -336,7 +336,7 @@ func DumpNodeConfig(configDest string, nodeConfig *config.NodeConfig, format str
 	}
 }
 
-func EncryptString(srcString string, passPhrase string) (encrypted string, err error) {
+func encryptString(srcString string, passPhrase string) (encrypted string, err error) {
 	var b []byte
 	if b, err = crypt.Encrypt([]byte(srcString), passPhrase); err != nil {
 		err = fmt.Errorf("EncryptString: Encrypt() failure: %s", err)
@@ -395,11 +395,11 @@ func main() {
 			err = fmt.Errorf("main() failure: expected compute.hostName, storage.bootLun.osImage.name, and storage.seedLun.seedTemplate.location")
 		} else {
 			var serverExists bool
-			if serverExists, err = DiscoverServer(&nodeConfig); err == nil {
+			if serverExists, err = discoverServer(&nodeConfig); err == nil {
 				if serverExists == false {
-					if err = ProvisionServerPreflight(&nodeConfig); err == nil {
-						if err = ProvisionServer(&nodeConfig); err != nil {
-							DeprovisionServer(&nodeConfig)
+					if err = provisionServerPreflight(&nodeConfig); err == nil {
+						if err = provisionServer(&nodeConfig); err != nil {
+							deprovisionServer(&nodeConfig)
 						}
 					}
 				}
@@ -411,7 +411,7 @@ func main() {
 		if nodeConfig.Compute.HostName == "" {
 			err = fmt.Errorf("main() failure: expected compute.hostName")
 		} else {
-			err = DeprovisionServer(&nodeConfig)
+			err = deprovisionServer(&nodeConfig)
 		}
 		nodeResult.DumpResult(nodeResult, *optDumpResult, *optEncodingFormat, err)
 	case "stopServer":
@@ -436,7 +436,7 @@ func main() {
 			err = fmt.Errorf("main() failure: expected image name and image path")
 			baseResult.DumpResult(baseResult, *optDumpResult, *optEncodingFormat, err)
 		} else {
-			if err = UploadImage(&nodeConfig, *optImageName, *optImagePath); err != nil {
+			if err = uploadImage(&nodeConfig, *optImageName, *optImagePath); err != nil {
 				baseResult.DumpResult(baseResult, *optDumpResult, *optEncodingFormat, err)
 			}
 		}
@@ -446,7 +446,7 @@ func main() {
 			err = fmt.Errorf("main() failure: expected template name and template path")
 			baseResult.DumpResult(baseResult, *optDumpResult, *optEncodingFormat, err)
 		} else {
-			if err = UploadTemplate(&nodeConfig, *optTemplateName, *optTemplatePath); err != nil {
+			if err = uploadTemplate(&nodeConfig, *optTemplateName, *optTemplatePath); err != nil {
 				baseResult.DumpResult(baseResult, *optDumpResult, *optEncodingFormat, err)
 			}
 		}
@@ -500,7 +500,7 @@ func main() {
 		if nodeConfig.Compute.HostName == "" || *optSnapshotName == "" {
 			err = fmt.Errorf("main() failure: expected compute.hostName and snapshot name")
 		} else {
-			err = RestoreSnapshot(&nodeConfig, *optSnapshotName)
+			err = restoreSnapshot(&nodeConfig, *optSnapshotName)
 		}
 		baseResult.DumpResult(baseResult, *optDumpResult, *optEncodingFormat, err)
 	case "listImages":
@@ -522,26 +522,26 @@ func main() {
 	case "encryptConfig":
 		var baseResult OperationResult = &BaseResult{}
 		if err = config.EncryptNodeConfig(&nodeConfig, passPhrase); err == nil {
-			DumpNodeConfig(*optDumpResult, &nodeConfig, *optEncodingFormat)
+			dumpNodeConfig(*optDumpResult, &nodeConfig, *optEncodingFormat)
 		} else {
 			baseResult.DumpResult(baseResult, *optDumpResult, *optEncodingFormat, err)
 		}
 	case "decryptConfig":
 		var baseResult OperationResult = &BaseResult{}
 		if err = config.DecryptNodeConfig(&nodeConfig, passPhrase); err == nil {
-			DumpNodeConfig("STDOUT", &nodeConfig, *optEncodingFormat)
+			dumpNodeConfig("STDOUT", &nodeConfig, *optEncodingFormat)
 		} else {
 			baseResult.DumpResult(baseResult, *optDumpResult, *optEncodingFormat, err)
 		}
 	case "encryptString":
 		var baseResult OperationResult = &BaseResult{}
 		var encrypted string
-		if encrypted, err = EncryptString(*optSourceString, passPhrase); err == nil {
+		if encrypted, err = encryptString(*optSourceString, passPhrase); err == nil {
 			fmt.Println(encrypted)
 		} else {
 			baseResult.DumpResult(baseResult, *optDumpResult, *optEncodingFormat, err)
 		}
 	default:
-		Usage()
+		usage()
 	}
 }

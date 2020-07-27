@@ -74,4 +74,6 @@ runcmd:
   - [ ln, -s, /kubernetes/log, /var/log/pods ]
   - [ ln, -s, /kubernetes/etcd, /var/lib/etcd ]
   - [ sed, -i, 's/,_netdev//g', /etc/fstab ]
+  - [ systemctl, enable, sshd ]
+  - [ systemctl, start, sshd ]
 {{end}}{{/* user-data template ends here */}}

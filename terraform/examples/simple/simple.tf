@@ -77,6 +77,10 @@ resource "flexbot_server" "k8s-node1" {
     safe_removal = false
     # Wait for SSH accessible (seconds), default is 0 (no wait)
     wait_for_ssh_timeout = 1200
+    # SSH user name, required only for consistent snapshosts
+    ssh_user = "cloud-user"
+    # SSH private key, required only for consistent snapshosts
+    ssh_private_key = file("~/.ssh/id_rsa")
   }
 
   # cDOT storage
@@ -141,6 +145,18 @@ resource "flexbot_server" "k8s-node1" {
       subnet = "192.168.3.0/24"
     }
   }
+
+  # cDOT storage snapshots to take while server lifecycle management
+  # You may want to keep the list empty until server is built
+  snapshot: [
+    {
+      # Snapshot name
+      name: "terraform-2020-07-24-17:15",
+      # Ensure "fsfreeze" for every filesystem on iSCSI LUN's before taking snapshot
+      # Requires ssh_user and ssh_private_key parameters in "compute"
+      fsfreeze: true
+    }
+  ]
 
   # Cloud Arguments are optional user defined key/value pairs to resolve in cloud-init template
   cloud_args = {

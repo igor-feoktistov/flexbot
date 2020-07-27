@@ -28,12 +28,30 @@ variable "node_compute_config" {
 }
 
 variable "node_network_config" {
-  type = map(object({
-    if_name = string
+  type = map(list(object({
+    name = string
     subnet = string
     gateway = string
     dns_server1 = string
     dns_server2 = string
     dns_domain = string
+  })))
+}
+
+variable "snapshots" {
+  type = list(object({
+    name = string
+    fsfreeze = bool
   }))
+  default = []
+}
+
+variable "zapi_version" {
+  type = string
+  description = "cDOT ZAPI version"
+  default = ""
+}
+
+variable "pass_phrase" {
+  type = string
 }
