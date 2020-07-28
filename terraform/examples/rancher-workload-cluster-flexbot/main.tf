@@ -69,7 +69,7 @@ resource "flexbot_server" "master" {
     safe_removal = false
     wait_for_ssh_timeout = 1800
     ssh_user = var.node_compute_config.ssh_user
-    ssh_private_key = file(var.node_compute_config.ssh_private_key)
+    ssh_private_key = file(var.node_compute_config.ssh_private_key_path)
   }
   # cDOT storage
   storage {
@@ -171,7 +171,7 @@ resource "flexbot_server" "worker" {
     safe_removal = false
     wait_for_ssh_timeout = 1800
     ssh_user = var.node_compute_config.ssh_user
-    ssh_private_key = file(var.node_compute_config.ssh_private_key)
+    ssh_private_key = file(var.node_compute_config.ssh_private_key_path)
   }
   # cDOT storage
   storage {

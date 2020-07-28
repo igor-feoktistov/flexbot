@@ -24,7 +24,7 @@ nodes = {
 rancher_config = {
   api_url = "https://rancher.example.com"
   rke_template = "rke-flexpod"
-  cluster_name = "flexpod_example"
+  cluster_name = "flexpod-example"
 }
 
 flexbot_credentials = {
@@ -55,6 +55,7 @@ infoblox_config = {
 node_compute_config = {
   sp_org = "org-root/org-Kubernetes"
   sp_template = "org-root/org-Kubernetes/ls-K8S-02-SPD-01"
+  ssh_user = "cloud-user"
   ssh_public_key_path = "~/.ssh/id_rsa.pub"
   ssh_private_key_path = "~/.ssh/id_rsa"
 }
