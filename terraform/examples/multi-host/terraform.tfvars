@@ -1,6 +1,7 @@
 nodes = {
-  hosts = ["node-k8s01", "node-k8s02", "node-k8s03"]
-  compute_blade_spec_dn = ["sys/chassis-4/blade-7", "sys/chassis-5/blade-7", "sys/chassis-6/blade-7"]
+  hosts = ["node-k8s01","node-k8s02","node-k8s03"]
+  #compute_blade_spec_dn = ["sys/chassis-4/blade-7","sys/chassis-5/blade-7","sys/chassis-6/blade-7"]
+  compute_blade_spec_dn = ["","",""]
   compute_blade_spec_model = "UCSB-B200-M5"
   compute_blade_spec_total_memory = "65536-262144"
   os_image = "ubuntu-18.04.01-iboot"
