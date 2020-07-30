@@ -94,8 +94,9 @@ resource "flexbot_server" "k8s-node1" {
     }
     # Seed LUN for cloud-init
     seed_lun {
-      # cloud-init template name
-      seed_template = "cloud-init/rhel7-cloud-init.template"
+      # cloud-init template name (see examples/cloud-init in this project)
+      # remove directory path if uploaded to template repo
+      seed_template = "../../../examples/cloud-init/rhel7-cloud-init.template"
     }
     # Data LUN is optional
     data_lun {

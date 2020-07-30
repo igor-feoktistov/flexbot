@@ -6,7 +6,7 @@ nodes = {
     compute_blade_spec_model = "UCSB-B200-M5"
     compute_blade_spec_total_memory = "65536-262144"
     os_image = "ubuntu-18.04.01-iboot"
-    seed_template = "ubuntu-18.04-cloud-init.template"
+    seed_template = "../../../examples/cloud-init/ubuntu-18.04-cloud-init.template"
     boot_lun_size = 32
     data_lun_size = 64
   }
@@ -17,7 +17,7 @@ nodes = {
     compute_blade_spec_model = "UCSB-B200-M5"
     compute_blade_spec_total_memory = "65536-262144"
     os_image = "ubuntu-18.04.01-iboot"
-    seed_template = "ubuntu-18.04-cloud-init.template"
+    seed_template = "../../../examples/cloud-init/ubuntu-18.04-cloud-init.template"
     boot_lun_size = 32
     data_lun_size = 128
   }
