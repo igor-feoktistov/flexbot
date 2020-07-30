@@ -127,7 +127,6 @@ resource "flexbot_server" "host" {
       "curl https://releases.rancher.com/install-docker/19.03.sh | sh > /dev/null 2>&1",
     ]
   }
-
 }
 
 resource rke_cluster "cluster" {
@@ -199,6 +198,7 @@ resource "helm_release" "cert-manager" {
   repository = "https://charts.jetstack.io"
   namespace = "cert-manager"
   create_namespace = "true"
+  wait = "true"
 
   set {
     name = "namespace"
@@ -216,18 +216,14 @@ resource "helm_release" "cert-manager" {
   }
 }
 
-resource "time_sleep" "wait_for_cert_manager" {
-  depends_on = [helm_release.cert-manager]
-  create_duration = "30s"
-}
-
 resource "helm_release" "rancher" {
-  depends_on = [helm_release.cert-manager, time_sleep.wait_for_cert_manager]
+  depends_on = [helm_release.cert-manager]
   name = "rancher"
   chart = "rancher"
   repository = "https://releases.rancher.com/server-charts/stable"
   namespace = "cattle-system"
   create_namespace = "true"
+  wait = "true"
 
   set {
     name = "namespace"

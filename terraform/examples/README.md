@@ -6,7 +6,8 @@ Make sure to update respective `terraform.tfvars` files with your own infrastruc
 ## Examples
 
 * [simple](./simple) Simple configuration with a lot of comments.
-* [multi-host](./multi-host) Provisions multiple servers the same configuration in one shot.
+* [host-flexbot](./host-flexbot) Provisions multiple servers the same configuration in one shot.
+* [rke-flexbot](./rke-flexbot) Provisions RKE cluster.
 * [rancher-server-flexbot](./rancher-server-flexbot) Provisions Rancher Server on top of RKE cluster.
 * [rancher-workload-cluster-flexbot](./rancher-workload-cluster-flexbot) Provisions Rancher workload cluster.
 
