@@ -121,6 +121,12 @@ resource "flexbot_server" "host" {
     private_key = file(var.node_compute_config.ssh_private_key_path)
     timeout = "10m"
   }
+  # Provisioner to wait until cloud-init finishes
+  provisioner "remote-exec" {
+    inline = [
+      "sudo cloud-init status --wait > /dev/null 2>&1 || true",
+    ]
+  }
   # Provisioner to install docker
   provisioner "remote-exec" {
     inline = [

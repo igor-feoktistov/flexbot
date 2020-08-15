@@ -54,7 +54,6 @@ users:
     gecos: Default cloud user
     sudo: ALL=(ALL) NOPASSWD:ALL
     groups: users, admin, docker
-    ssh_import_id: None
     lock_passwd: true
     ssh_authorized_keys:
       - {{index .CloudArgs "ssh_pub_key"}}
@@ -77,7 +76,6 @@ runcmd:
   - [ ln, -s, /kubernetes/docker, /var/lib/docker ]
   - [ ln, -s, /kubernetes/log, /var/log/pods ]
   - [ ln, -s, /kubernetes/etcd, /var/lib/etcd ]
-  - [ /usr/bin/systemctl, enable, sshd ]
   - [ sync ]
   - [ reboot, -f ]
 {{end}}{{/* user-data template ends here */}}

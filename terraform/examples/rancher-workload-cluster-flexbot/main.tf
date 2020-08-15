@@ -141,6 +141,12 @@ resource "flexbot_server" "master" {
     private_key = file(var.node_compute_config.ssh_private_key_path)
     timeout = "10m"
   }
+  # Provisioner to wait until cloud-init finishes
+  provisioner "remote-exec" {
+    inline = [
+      "sudo cloud-init status --wait > /dev/null 2>&1 || true",
+    ]
+  }
   # Provisioner to install docker
   provisioner "remote-exec" {
     inline = [
@@ -243,16 +249,22 @@ resource "flexbot_server" "worker" {
     private_key = file(var.node_compute_config.ssh_private_key_path)
     timeout = "10m"
   }
+  # Provisioner to wait until cloud-init finishes
+  provisioner "remote-exec" {
+    inline = [
+      "sudo cloud-init status --wait > /dev/null 2>&1 || true",
+    ]
+  }
   # Provisioner to install docker
   provisioner "remote-exec" {
     inline = [
-      "sudo curl ${data.rancher2_setting.docker_install_url.value} | sh > /dev/null 2>&1",
+      "curl ${data.rancher2_setting.docker_install_url.value} | sh > /dev/null 2>&1",
     ]
   }
   # Provisioner to register to the cluster
   provisioner "remote-exec" {
     inline = [
-      "sudo ${rancher2_cluster.cluster.cluster_registration_token[0].node_command} --worker > /dev/null 2>&1",
+      "${rancher2_cluster.cluster.cluster_registration_token[0].node_command} --worker > /dev/null 2>&1",
     ]
   }
 }

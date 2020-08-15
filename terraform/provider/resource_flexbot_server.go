@@ -578,7 +578,13 @@ func resourceCreateServer(d *schema.ResourceData, meta interface{}) (err error) 
 		for time.Now().Before(giveupTime) {
 			if checkSshListen(nodeConfig.Network.Node[0].Ip) {
 				if len(sshUser) > 0 && len(sshPrivateKey) > 0 {
-					err = checkSshCommand(nodeConfig.Network.Node[0].Ip, sshUser, sshPrivateKey)
+					stabilazeTime := time.Now().Add(time.Second * 60)
+					for time.Now().Before(stabilazeTime) {
+						if err = checkSshCommand(nodeConfig.Network.Node[0].Ip, sshUser, sshPrivateKey); err == nil {
+							break
+						}
+						time.Sleep(1 * time.Second)
+					}
 				}
 				break
 			}
