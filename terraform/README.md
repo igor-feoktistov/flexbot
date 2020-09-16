@@ -20,7 +20,7 @@ Requirements
 Building the provider
 ---------------------
 
-Clone `flexbot` project repository.
+Clone [flexbot project repository](https://github.com/igor-feoktistov/flexbot).
 
 Build `flexbot` CLI following the instructions in the project README to make sure all dependencies are resolved.
 
