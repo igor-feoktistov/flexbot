@@ -1,3 +1,12 @@
+terraform {
+  required_providers {
+    flexbot = {
+      source  = "igor-feoktistov/flexbot"
+      version = "1.3.2"
+    }
+  }
+}
+
 provider "flexbot" {
 
   # Password phrase to decrypt passwords in credentials (if encrypted)
