@@ -1,8 +1,8 @@
-# flexbot is a tool to build bare-metal Linux on FlexPod (Cisco UCS and NetApp cDOT)
+# Flexbot is a tool to build bare-metal Linux on [FlexPod](https://flexpod.com) (Cisco UCS and NetApp cDOT)
 
 Compared to other bare-metal tools it does not require any additional infrastructure like PXE/DHCP servers.
 
-Also available as a terraform provider (see [terraform](./terraform)).
+Also available as a terraform provider (see [terraform flexbot](https://registry.terraform.io/providers/igor-feoktistov/flexbot/latest)).
 
 # Documentation
 
