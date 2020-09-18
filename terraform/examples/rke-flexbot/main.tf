@@ -1,16 +1,3 @@
-terraform {
-  required_providers {
-    flexbot = {
-      source  = "igor-feoktistov/flexbot"
-      version = "1.3.3"
-    }
-    rke = {
-      source = "rancher/rke"
-      version = "1.1.1"
-    }
-  }
-}
-
 locals {
   output_path = var.output_path == "" ? "output" : var.output_path
 }
