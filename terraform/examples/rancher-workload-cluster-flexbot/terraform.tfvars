@@ -1,49 +1,41 @@
 nodes = {
   masters = {
     hosts = ["node-k8s01","node-k8s02","node-k8s03"]
-    #compute_blade_spec_dn = ["sys/chassis-4/blade-7","sys/chassis-5/blade-1","sys/chassis-9/blade-3"]
-    compute_blade_spec_dn = ["","",""]
+    compute_blade_spec_dn = ["sys/chassis-4/blade-2","sys/chassis-5/blade-3","sys/chassis-6/blade-4"]
     compute_blade_spec_model = "UCSB-B200-M5"
     compute_blade_spec_total_memory = "65536-262144"
-    os_image = "ubuntu-18.04.01-iboot"
-    seed_template = "../../../examples/cloud-init/ubuntu-18.04-cloud-init.template"
+    os_image = "ubuntu-18.04.05-iboot"
+    seed_template = "ubuntu-18.04-cloud-init.template"
     boot_lun_size = 32
     data_lun_size = 64
   }
   workers = {
-    hosts = ["node-k8s04","node-k8s05","node-k8s06"]
-    #compute_blade_spec_dn = ["sys/chassis-4/blade-8","sys/chassis-5/blade-2","sys/chassis-9/blade-5"]
-    compute_blade_spec_dn = ["","",""]
+    hosts = ["node-k8s04","node-k8s04","node-k8s04"]
+    compute_blade_spec_dn = ["sys/chassis-4/blade-2","sys/chassis-5/blade-3","sys/chassis-6/blade-4"]
     compute_blade_spec_model = "UCSB-B200-M5"
     compute_blade_spec_total_memory = "65536-262144"
-    os_image = "ubuntu-18.04.01-iboot"
-    seed_template = "../../../examples/cloud-init/ubuntu-18.04-cloud-init.template"
+    os_image = "ubuntu-18.04.05-iboot"
+    seed_template = "ubuntu-18.04-cloud-init.template"
     boot_lun_size = 32
-    data_lun_size = 128
+    data_lun_size = 256
   }
-}
-
-rancher_config = {
-  api_url = "https://rancher.example.com"
-  rke_template = "rke-flexpod"
-  cluster_name = "flexpod-example"
 }
 
 flexbot_credentials = {
   infoblox = {
     host = "ib.example.com"
     user = "admin"
-    password = "base64:jqdbcMI8dI<...skip...>5DqZg8+cKiZeudV1js2BEAgN4v0Eo="
+    password = "base64:jqdbcMI8dI5Dq<...skip...>yoskcRz9UUP+gN4v0Eo="
   }
   ucsm = {
     host = "ucsm.example.com"
     user = "admin"
-    password = "base64:kEqDbvk/Dw<...skip...>ABcCHetWJVorS6UIj5H6pA6QTFDOc="
+    password = "base64:kEqDbvk/DwABc<...skip...>orS6UIjo21DpA6QTFDOc="
   }
   cdot = {
     host = "vserver.example.com"
     user = "vsadmin"
-    password = "base64:qiZIN5H04o<...skip...>K157k4C3ysTuoBIIg/boHi2n3+4kQ="
+    password = "base64:qiZIN5H04oK15<...skip...>7k4uoBIIg/boi2n3+4kQ="
   }
 }
 
@@ -56,7 +48,7 @@ infoblox_config = {
 
 node_compute_config = {
   sp_org = "org-root/org-Kubernetes"
-  sp_template = "org-root/org-Kubernetes/ls-K8S-02-SPD-01"
+  sp_template = "org-root/org-Kubernetes/ls-K8S-01-SPD-01"
   ssh_user = "cloud-user"
   ssh_public_key_path = "~/.ssh/id_rsa.pub"
   ssh_private_key_path = "~/.ssh/id_rsa"
@@ -74,7 +66,7 @@ node_network_config = {
     },
     {
       name = "eth3"
-      subnet = "192.168.4.0/24"
+      subnet = "192.168.2.0/24"
       gateway = ""
       dns_server1 = ""
       dns_server2 = ""
@@ -84,7 +76,7 @@ node_network_config = {
   iscsi_initiator = [
     {
       name = "iscsi0"
-      subnet = "192.168.2.0/24"
+      subnet = "192.168.3.0/24"
       gateway = ""
       dns_server1 = ""
       dns_server2 = ""
@@ -92,7 +84,7 @@ node_network_config = {
     },
     {
       name = "iscsi1"
-      subnet = "192.168.3.0/24"
+      subnet = "192.168.4.0/24"
       gateway = ""
       dns_server1 = ""
       dns_server2 = ""
@@ -103,6 +95,10 @@ node_network_config = {
 
 snapshots = []
 
+rancher_config = {
+  api_url = "https://rancher.example.com"
+  cluster_name = "npc-us-west-01-01"
+  kubernetes_version = "v1.19.3-rancher1-2"
+}
+
 output_path = "output"
-token_key = "token-947h6:d7m2s<...skip...>jmjjlw9zgvd9f7slwvnnqw62l4rg"
-pass_phrase = "secret"

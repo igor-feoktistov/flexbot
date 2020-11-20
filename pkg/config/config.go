@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"text/template"
+	"path/filepath"
 
 	"flexbot/pkg/util/crypt"
 	"github.com/igor-feoktistov/go-ucsm-sdk/util"
@@ -153,6 +154,7 @@ func SetDefaults(nodeConfig *NodeConfig, hostName string, image string, template
 		nodeConfig.Storage.BootLun.OsImage.Name = image
 	}
 	if templatePath != "" {
+		nodeConfig.Storage.SeedLun.SeedTemplate.Name = filepath.Base(templatePath)
 		nodeConfig.Storage.SeedLun.SeedTemplate.Location = templatePath
 	}
 	if nodeConfig.Compute.HostName != "" {

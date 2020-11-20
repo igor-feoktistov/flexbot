@@ -3,6 +3,8 @@ package ontap
 import (
 	"fmt"
 	"strconv"
+	"path/filepath"
+	"math"
 
 	"flexbot/pkg/config"
 	"github.com/igor-feoktistov/go-ontap-sdk/ontap"
@@ -322,6 +324,166 @@ func DeleteBootStorage(nodeConfig *config.NodeConfig) (err error) {
 		}
 		if _, _, err = c.VolumeDestroyAPI(nodeConfig.Storage.VolumeName); err != nil {
 			err = fmt.Errorf("DeleteBootStorage: VolumeDestroyAPI() failure: %s", err)
+		}
+	}
+	return
+}
+
+func DeleteBootLUNs(nodeConfig *config.NodeConfig) (err error) {
+	var c *ontap.Client
+	var response *ontap.SingleResultResponse
+	if c, err = CreateCdotClient(nodeConfig); err != nil {
+		err = fmt.Errorf("DeleteBootLUNs(): CreateCdotClient() failure: %s", err)
+		return
+	}
+	var igroupExists bool
+	igroupExists, err = util.IgroupExists(c, nodeConfig.Storage.IgroupName)
+	if err != nil {
+		err = fmt.Errorf("DeleteBootLUNs(): IgroupExists() failure: %s", err)
+		return
+	}
+	for _, lunName := range []string{nodeConfig.Storage.BootLun.Name, nodeConfig.Storage.DataLun.Name, nodeConfig.Storage.SeedLun.Name} {
+		lunPath := "/vol/" + nodeConfig.Storage.VolumeName + "/" + lunName
+		var lunExists bool
+		lunExists, err = util.LunExists(c, lunPath)
+		if err != nil {
+			err = fmt.Errorf("DeleteBootLUNs(): LunExists() failure: %s", err)
+			return
+		}
+		if lunExists {
+			if igroupExists {
+				lunUnmapOptions := &ontap.LunUnmapOptions{
+					InitiatorGroup: nodeConfig.Storage.IgroupName,
+					Path:           lunPath,
+				}
+				if response, _, err = c.LunUnmapAPI(lunUnmapOptions); err != nil {
+					if !(response.Results.ErrorNo == ontap.EVDISK_ERROR_NO_SUCH_VDISK || response.Results.ErrorNo == ontap.EVDISK_ERROR_NO_SUCH_LUNMAP) {
+						err = fmt.Errorf("DeleteBootLUNs(): LunUnmapAPI() failure: %s", err)
+						return
+					}
+				}
+			}
+			lunDestroyOptions := &ontap.LunDestroyOptions{
+				Path: lunPath,
+			}
+			if response, _, err = c.LunDestroyAPI(lunDestroyOptions); err != nil {
+				if response.Results.ErrorNo != ontap.ENTRYDOESNOTEXIST {
+					err = fmt.Errorf("DeleteBootLUNs(): LunDestroyAPI() failure: %s", err)
+					return
+				}
+			}
+		}
+	}
+	var fileExists bool
+	if fileExists, err = util.FileExists(c, "/vol/" + nodeConfig.Storage.VolumeName + "/seed"); err != nil {
+		err = fmt.Errorf("DeleteBootLUNs(): FileExists() failure: %s", err)
+		return
+	}
+	if fileExists {
+		if _, _, err = c.FileDeleteFileAPI("/vol/" + nodeConfig.Storage.VolumeName + "/seed"); err != nil {
+			err = fmt.Errorf("DeleteRepoImage: FileDeleteFileAPI() failure: %s", err)
+		}
+	}
+	return
+}
+
+func DiscoverBootStorage(nodeConfig *config.NodeConfig) (storageExists bool, err error) {
+	var c *ontap.Client
+	var response *ontap.LunGetResponse
+	var options *ontap.LunGetOptions
+	if c, err = CreateCdotClient(nodeConfig); err != nil {
+		return
+	}
+	bootLunPath := "/vol/" + nodeConfig.Storage.VolumeName + "/" + nodeConfig.Storage.BootLun.Name
+	dataLunPath := "/vol/" + nodeConfig.Storage.VolumeName + "/" + nodeConfig.Storage.DataLun.Name
+	seedLunPath := "/vol/" + nodeConfig.Storage.VolumeName + "/" + nodeConfig.Storage.SeedLun.Name
+	storageExists, err = util.VolumeExists(c, nodeConfig.Storage.VolumeName)
+	if err != nil {
+		err = fmt.Errorf("DiscoverBootStorage(): VolumeExists() failure: %s", err)
+		return
+	}
+	if !storageExists {
+		return
+	}
+	options = &ontap.LunGetOptions{
+		MaxRecords: 1,
+		Query: &ontap.LunQuery{
+			LunInfo: &ontap.LunInfo{
+				Path: bootLunPath,
+			},
+		},
+	}
+	response, _, err = c.LunGetAPI(options)
+	if err != nil {
+		err = fmt.Errorf("DiscoverBootStorage(): LunGetAPI() failure: %s", err)
+		return
+	}
+	if response.Results.NumRecords == 0 {
+		err = fmt.Errorf("DiscoverBootStorage(): LunGetAPI() failure: boot LUN %s not found", bootLunPath)
+		return
+	}
+    	if response.Results.AttributesList.LunAttributes[0].Comment != "" {
+    		nodeConfig.Storage.BootLun.OsImage.Name = response.Results.AttributesList.LunAttributes[0].Comment
+	}
+	nodeConfig.Storage.BootLun.Size = int(math.Round(float64(response.Results.AttributesList.LunAttributes[0].Size)/1024/1024/1024))
+	options = &ontap.LunGetOptions{
+		MaxRecords: 1,
+		Query: &ontap.LunQuery{
+			LunInfo: &ontap.LunInfo{
+				Path: dataLunPath,
+			},
+		},
+	}
+	response, _, err = c.LunGetAPI(options)
+	if err != nil {
+		err = fmt.Errorf("DiscoverBootStorage(): LunGetAPI() failure: %s", err)
+		return
+	}	
+	if response.Results.NumRecords > 0 {
+		nodeConfig.Storage.DataLun.Size = int(math.Round(float64(response.Results.AttributesList.LunAttributes[0].Size)/1024/1024/1024))
+	}
+	options = &ontap.LunGetOptions{
+		MaxRecords: 1,
+		Query: &ontap.LunQuery{
+			LunInfo: &ontap.LunInfo{
+				Path: seedLunPath,
+			},
+		},
+	}
+	response, _, err = c.LunGetAPI(options)
+	if err != nil {
+		err = fmt.Errorf("DiscoverBootStorage(): LunGetAPI() failure: %s", err)
+		return
+	}	
+	if response.Results.NumRecords == 0 {
+		err = fmt.Errorf("DiscoverBootStorage(): LunGetAPI() failure: seed LUN %s not found", seedLunPath)
+		return
+	}
+    	if response.Results.AttributesList.LunAttributes[0].Comment != "" {
+                nodeConfig.Storage.SeedLun.SeedTemplate.Location = response.Results.AttributesList.LunAttributes[0].Comment
+		nodeConfig.Storage.SeedLun.SeedTemplate.Name = filepath.Base(response.Results.AttributesList.LunAttributes[0].Comment)
+	}
+	var iscsiNodeGetNameResponse *ontap.IscsiNodeGetNameResponse
+	// Fetching iSCSI target node name
+	if iscsiNodeGetNameResponse, _, err = c.IscsiNodeGetNameAPI(); err != nil {
+		err = fmt.Errorf("DiscoverBootStorage: IscsiNodeGetNameAPI() failure: %s", err)
+		return
+	}
+	var lifs []*ontap.NetInterfaceInfo
+	// Discover iSCSI LIF's and add LIF's IP's to iSCSI initiator configuration
+	for i, _ := range nodeConfig.Network.IscsiInitiator {
+		nodeConfig.Network.IscsiInitiator[i].IscsiTarget = &config.IscsiTarget{}
+		nodeConfig.Network.IscsiInitiator[i].IscsiTarget.NodeName = iscsiNodeGetNameResponse.Results.NodeName
+		if lifs, err = util.DiscoverIscsiLIFs(c, bootLunPath, nodeConfig.Network.IscsiInitiator[i].Subnet); err != nil {
+			return
+		}
+		if len(lifs) > 0 {
+			for _, lif := range lifs {
+				nodeConfig.Network.IscsiInitiator[i].IscsiTarget.Interfaces = append(nodeConfig.Network.IscsiInitiator[i].IscsiTarget.Interfaces, lif.Address)
+			}
+		} else {
+			err = fmt.Errorf("CreateBootStorage: DiscoverIscsiLIFs(): no iSCSI LIF's found for fabric %s: %s", nodeConfig.Network.IscsiInitiator[i].Name, err)
+			return
 		}
 	}
 	return

@@ -5,7 +5,7 @@ provider "flexbot" {
   # Use 'flexbot --op=encryptString [--passphrase=<password phrase>]' CLI to generate encrypted passwords values
   pass_phrase = "secret"
 
-  # IPAM is implemented via pluggable providers.
+  # IPAM is implemented via pluggable providers (required).
   # Only "Infoblox" and "Internal" providers are supported at this time.
   # "Internal" provider expects you to supply "ip" and "fqdn" in network configurations.
   # Define 'provider = "Internal"' if you manage IPAM via terraform provider.
@@ -24,7 +24,7 @@ provider "flexbot" {
     dns_zone = "example.com"
   }
 
-  # UCS compute
+  # UCS compute (required)
   compute {
     # Credentials for UCSM
     credentials {
@@ -34,7 +34,7 @@ provider "flexbot" {
     }
   }
 
-  # cDOT storage
+  # cDOT storage (required)
   storage {
     # Credentials either for cDOT cluster or SVM
     # SVM (storage virtual machine) is highly recommended
@@ -46,6 +46,34 @@ provider "flexbot" {
       zapi_version = "1.160"
     }
   }
+
+  # Rancher API (optional)
+  # Rancher API helps with node management in Rancher cluster:
+  #  - graceful node removal (cordon/drain);
+  #  - graceful node blade specs updates (cordon/drain/uncordon);
+  #  - graceful node image/cloud-init updates (cordon/drain/uncordon).
+  rancher_api {
+    api_url = "https://rancher.example.com"
+    token_key = "token-xxx"
+    insecure = true
+    cluster_id = rancher2_cluster.cluster.id
+    drain_input {
+      force = true
+      delete_local_data = true
+      grace_period = 60
+      ignore_daemon_sets = true
+      timeout = 1800
+    }
+  }
+  
+  # Synchronized nodes updates (optional).
+  # Highly suggested to enabled it when Rancher API is enabled.
+  # Affects the following tasks when enabled:
+  #  - node blade specs updates;
+  #  - node image/cloud-init updates.
+  # If enabled, above nodes updates happen one node at time.
+  # Failure in any node update task would stop updates for all others nodes.
+  synchronized_updates = true
 
 }
 

@@ -136,6 +136,7 @@ func CreateRepoImage(nodeConfig *config.NodeConfig, imageName string, imagePath 
 	}
 	// Create OS image LUN from image file
 	lunOptions := &ontap.LunCreateFromFileOptions{
+		Comment:  imageName,
 		FileName: "/vol/" + nodeConfig.Storage.ImageRepoName + "/_" + imageName,
 		Path:     "/vol/" + nodeConfig.Storage.ImageRepoName + "/" + imageName,
 		OsType:   "linux",

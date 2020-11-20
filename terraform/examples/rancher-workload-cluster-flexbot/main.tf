@@ -2,14 +2,68 @@ locals {
   output_path = var.output_path == "" ? "output" : var.output_path
 }
 
+
 provider "rancher2" {
   api_url = var.rancher_config.api_url
   token_key = var.token_key
   insecure = true
 }
 
+data "rancher2_setting" "docker_install_url" {
+  name = "engine-install-url"
+}
+
+resource "rancher2_cluster" "cluster" {
+  name = var.rancher_config.cluster_name
+  rke_config {
+    kubernetes_version = var.rancher_config.kubernetes_version
+    network {
+      plugin = "canal"
+    }
+    services {
+      etcd {
+        creation = "6h"
+        retention = "24h"
+      }
+      kube_api {
+        service_cluster_ip_range = "172.20.0.0/16"
+        service_node_port_range = "30000-32767"
+        pod_security_policy = false
+      }
+      kube_controller {
+        cluster_cidr = "172.30.0.0/16"
+        service_cluster_ip_range = "172.20.0.0/16"
+      }
+      kubelet {
+        cluster_domain = "cluster.local"
+        cluster_dns_server = "172.20.0.10"
+        extra_args = {
+          max-pods = "500"
+        }
+      }
+    }
+    ingress {
+      provider = "nginx"
+    }
+    upgrade_strategy {
+      drain = true
+      drain_input {
+        force = true
+        delete_local_data = true
+        grace_period = 60
+        ignore_daemon_sets = true
+        timeout = 1800
+      }
+      max_unavailable_controlplane = "1"
+      max_unavailable_worker = "1"
+    }
+    ssh_key_path = var.node_compute_config.ssh_private_key_path
+  }
+}
+
 provider "flexbot" {
   pass_phrase = var.pass_phrase
+  synchronized_updates = true
   ipam {
     provider = "Infoblox"
     credentials {
@@ -37,20 +91,19 @@ provider "flexbot" {
       zapi_version = var.zapi_version
     }
   }
-}
-
-data "rancher2_cluster_template" "template" {
-  name = var.rancher_config.rke_template
-}
-
-data "rancher2_setting" "docker_install_url" {
-  name = "engine-install-url"
-}
-
-resource "rancher2_cluster" "cluster" {
-  name = var.rancher_config.cluster_name
-  cluster_template_id = data.rancher2_cluster_template.template.id
-  cluster_template_revision_id = data.rancher2_cluster_template.template.default_revision_id
+  rancher_api {
+    api_url = var.rancher_config.api_url
+    token_key = var.token_key
+    insecure = true
+    cluster_id = rancher2_cluster.cluster.id
+    drain_input {
+      force = true
+      delete_local_data = true
+      grace_period = 60
+      ignore_daemon_sets = true
+      timeout = 1800
+    }
+  }
 }
 
 # Master nodes
@@ -70,6 +123,11 @@ resource "flexbot_server" "master" {
     wait_for_ssh_timeout = 1800
     ssh_user = var.node_compute_config.ssh_user
     ssh_private_key = file(var.node_compute_config.ssh_private_key_path)
+    ssh_node_init_commands = [
+      "sudo cloud-init status --wait || true",
+      "curl ${data.rancher2_setting.docker_install_url.value} | sh",
+      "${rancher2_cluster.cluster.cluster_registration_token[0].node_command} --etcd --controlplane",
+    ]
   }
   # cDOT storage
   storage {
@@ -133,32 +191,6 @@ resource "flexbot_server" "master" {
     cloud_user = var.node_compute_config.ssh_user
     ssh_pub_key = file(var.node_compute_config.ssh_public_key_path)
   }
-  # Connection info for provisioners
-  connection {
-    type = "ssh"
-    host = self.network[0].node[0].ip
-    user = var.node_compute_config.ssh_user
-    private_key = file(var.node_compute_config.ssh_private_key_path)
-    timeout = "10m"
-  }
-  # Provisioner to wait until cloud-init finishes
-  provisioner "remote-exec" {
-    inline = [
-      "sudo cloud-init status --wait > /dev/null 2>&1 || true",
-    ]
-  }
-  # Provisioner to install docker
-  provisioner "remote-exec" {
-    inline = [
-      "curl ${data.rancher2_setting.docker_install_url.value} | sh > /dev/null 2>&1",
-    ]
-  }
-  # Provisioner to register to the cluster
-  provisioner "remote-exec" {
-    inline = [
-      "${rancher2_cluster.cluster.cluster_registration_token[0].node_command} --etcd --controlplane > /dev/null 2>&1",
-    ]
-  }
 }
 
 # Worker nodes
@@ -178,6 +210,11 @@ resource "flexbot_server" "worker" {
     wait_for_ssh_timeout = 1800
     ssh_user = var.node_compute_config.ssh_user
     ssh_private_key = file(var.node_compute_config.ssh_private_key_path)
+    ssh_node_init_commands = [
+      "sudo cloud-init status --wait || true",
+      "curl ${data.rancher2_setting.docker_install_url.value} | sh",
+      "${rancher2_cluster.cluster.cluster_registration_token[0].node_command} --worker",
+    ]
   }
   # cDOT storage
   storage {
@@ -240,32 +277,6 @@ resource "flexbot_server" "worker" {
   cloud_args = {
     cloud_user = var.node_compute_config.ssh_user
     ssh_pub_key = file(var.node_compute_config.ssh_public_key_path)
-  }
-  # Connection info for provisioners
-  connection {
-    type = "ssh"
-    host = self.network[0].node[0].ip
-    user = var.node_compute_config.ssh_user
-    private_key = file(var.node_compute_config.ssh_private_key_path)
-    timeout = "10m"
-  }
-  # Provisioner to wait until cloud-init finishes
-  provisioner "remote-exec" {
-    inline = [
-      "sudo cloud-init status --wait > /dev/null 2>&1 || true",
-    ]
-  }
-  # Provisioner to install docker
-  provisioner "remote-exec" {
-    inline = [
-      "curl ${data.rancher2_setting.docker_install_url.value} | sh > /dev/null 2>&1",
-    ]
-  }
-  # Provisioner to register to the cluster
-  provisioner "remote-exec" {
-    inline = [
-      "${rancher2_cluster.cluster.cluster_registration_token[0].node_command} --worker > /dev/null 2>&1",
-    ]
   }
 }
 

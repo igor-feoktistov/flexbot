@@ -11,10 +11,6 @@ variable "nodes" {
   }))
 }
 
-variable "rancher_config" {
-  type = map
-}
-
 variable "flexbot_credentials" {
   type = map(object({
     host = string
@@ -54,6 +50,16 @@ variable "zapi_version" {
   type = string
   description = "cDOT ZAPI version"
   default = ""
+}
+
+variable "rancher_config" {
+  type = map
+}
+
+variable "kubernetes_version" {
+  type = string
+  description = "RKE Kubernetes version"
+  default = "v1.18.9-rancher1-1"
 }
 
 variable "pass_phrase" {

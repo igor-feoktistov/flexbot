@@ -120,9 +120,8 @@ func CreateSeedStorage(nodeConfig *config.NodeConfig) (err error) {
 				}
 			}
 		}
-		if _, _, err = c.FileTruncateFileAPI("/vol/"+nodeConfig.Storage.VolumeName+"/seed", 0); err != nil {
-			err = fmt.Errorf("CreateSeedStorage: FileTruncateFileAPI() failure: %s", err)
-			return
+		if _, _, err = c.FileDeleteFileAPI("/vol/" + nodeConfig.Storage.VolumeName + "/seed"); err != nil {
+			err = fmt.Errorf("CreateSeedStorage: FileDeleteFileAPI() failure: %s", err)
 		}
 	}
 	if _, err = util.UploadFileAPI(c, nodeConfig.Storage.VolumeName, "/seed", isoReader); err != nil {
@@ -130,6 +129,7 @@ func CreateSeedStorage(nodeConfig *config.NodeConfig) (err error) {
 		return
 	}
 	seedLunCreateOptions := &ontap.LunCreateFromFileOptions{
+		Comment:  nodeConfig.Storage.SeedLun.SeedTemplate.Location,
 		FileName: "/vol/" + nodeConfig.Storage.VolumeName + "/seed",
 		Path:     "/vol/" + nodeConfig.Storage.VolumeName + "/" + nodeConfig.Storage.SeedLun.Name,
 		OsType:   "linux",
