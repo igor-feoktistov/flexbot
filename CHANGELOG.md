@@ -1,4 +1,4 @@
-## 1.4.2 (November 20, 2020)
+## 1.4.2 (November 24, 2020)
 
 FEATURES:
 
