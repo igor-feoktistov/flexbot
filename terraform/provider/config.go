@@ -4,7 +4,7 @@ import (
 	"sync"
 	
 	"flexbot/pkg/rancher"
-	"github.com/hashicorp/terraform/helper/schema"
+	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
 	rancherManagementClient "github.com/rancher/rancher/pkg/client/generated/management/v3"
 )
 
@@ -12,11 +12,12 @@ type UpdateManager struct {
 	Sync      sync.Mutex
 	LastError error
 }
-	
+
 type FlexbotConfig struct {
 	FlexbotProvider       *schema.ResourceData
 	RancherConfig         *rancher.Config
 	RancherNodeDrainInput *rancherManagementClient.NodeDrainInput
+	NodeGraceTimeout      int
 	UpdateManager         UpdateManager
 }
 

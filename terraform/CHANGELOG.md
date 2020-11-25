@@ -1,3 +1,17 @@
+## 1.4.2 (November 20, 2020)
+
+FEATURES:
+
+* **New Argument:** `ssh_node_bootdisk_resize_commands` - (Optional) To support boot disk resize on host.
+* **New Argument:** `ssh_node_datadisk_resize_commands` - (Optional) To support data disk resize on host.
+* **New Argument:** `node_grace_timeout` - (Optional) Grace timeout after each node update in changing blade_spec or os_image/seed_template.
+
+ENHANCEMENTS:
+
+* Resource update routine now supports re-sizing for boot_lun and data_lun.
+
+BUG FIXES:
+
 ## 1.4.1 (November 20, 2020)
 
 FEATURES:

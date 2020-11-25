@@ -2,7 +2,7 @@ terraform {
   required_providers {
     flexbot = {
       source  = "igor-feoktistov/flexbot"
-      version = ">=1.4.1"
+      version = ">=1.4.2"
     }
     rancher2 = {
       source = "rancher/rancher2"

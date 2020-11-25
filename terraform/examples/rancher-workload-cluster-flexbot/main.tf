@@ -128,6 +128,8 @@ resource "flexbot_server" "master" {
       "curl ${data.rancher2_setting.docker_install_url.value} | sh",
       "${rancher2_cluster.cluster.cluster_registration_token[0].node_command} --etcd --controlplane",
     ]
+    ssh_node_bootdisk_resize_commands = ["sudo /usr/sbin/growbootdisk"]
+    ssh_node_datadisk_resize_commands = ["sudo /usr/sbin/growdatadisk"]
   }
   # cDOT storage
   storage {
@@ -215,6 +217,8 @@ resource "flexbot_server" "worker" {
       "curl ${data.rancher2_setting.docker_install_url.value} | sh",
       "${rancher2_cluster.cluster.cluster_registration_token[0].node_command} --worker",
     ]
+    ssh_node_bootdisk_resize_commands = ["sudo /usr/sbin/growbootdisk"]
+    ssh_node_datadisk_resize_commands = ["sudo /usr/sbin/growdatadisk"]
   }
   # cDOT storage
   storage {

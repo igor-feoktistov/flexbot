@@ -17,7 +17,7 @@ import (
 	"flexbot/pkg/ucsm"
 	"flexbot/pkg/rancher"
 	"github.com/denisbrodbeck/machineid"
-	"github.com/hashicorp/terraform/helper/schema"
+        "github.com/hashicorp/terraform-plugin-sdk/helper/schema"
 )
 
 var (
@@ -75,6 +75,16 @@ func resourceFlexbotServer() *schema.Resource {
 							Default:  "",
 						},
 						"ssh_node_init_commands": {
+							Type:     schema.TypeList,
+							Optional: true,
+							Elem:     &schema.Schema{Type: schema.TypeString},
+						},
+						"ssh_node_bootdisk_resize_commands": {
+							Type:     schema.TypeList,
+							Optional: true,
+							Elem:     &schema.Schema{Type: schema.TypeString},
+						},
+						"ssh_node_datadisk_resize_commands": {
 							Type:     schema.TypeList,
 							Optional: true,
 							Elem:     &schema.Schema{Type: schema.TypeString},
@@ -223,7 +233,7 @@ func resourceFlexbotServer() *schema.Resource {
 						"data_lun": {
 							Type:     schema.TypeList,
 							Optional: true,
-							ForceNew: true,
+							MaxItems: 1,
 							Elem: &schema.Resource{
 								Schema: map[string]*schema.Schema{
 									"name": {
@@ -510,10 +520,6 @@ func resourceCreateServer(d *schema.ResourceData, meta interface{}) (err error) 
 	for _, snapshot := range d.Get("snapshot").([]interface{}) {
 		name := snapshot.(map[string]interface{})["name"].(string)
 		if snapshot.(map[string]interface{})["fsfreeze"].(bool) {
-			if compute["wait_for_ssh_timeout"].(int) == 0 {
-				err = fmt.Errorf("resourceCreateServer(): expected compute.wait_for_ssh_timeout parameter to ensure fsfreeze for snapshot %s", name)
-				return
-			}
 			if len(sshUser) == 0 || len(sshPrivateKey) == 0 {
 				err = fmt.Errorf("resourceCreateServer(): expected compute.ssh_user and compute.ssh_private_key parameters to ensure fsfreeze for snapshot %s", name)
 				return
@@ -581,7 +587,7 @@ func resourceCreateServer(d *schema.ResourceData, meta interface{}) (err error) 
 			"host": nodeConfig.Network.Node[0].Ip,
 		})
 	}
-	if compute["wait_for_ssh_timeout"].(int) > 0 && err == nil {
+	if compute["wait_for_ssh_timeout"].(int) > 0 && len(sshUser) > 0 && len(sshPrivateKey) > 0 && err == nil {
 		if err = waitForSsh(nodeConfig, compute["wait_for_ssh_timeout"].(int), sshUser, sshPrivateKey); err == nil {
 			for _, cmd := range compute["ssh_node_init_commands"].([]interface{}) {
 				var cmdOutput string
@@ -739,7 +745,7 @@ func resourceUpdateServerCompute(d *schema.ResourceData, meta interface{}) (err 
 				return
 			}
 		}
-		if (newCompute.([]interface{})[0].(map[string]interface{}))["wait_for_ssh_timeout"].(int) > 0 {
+		if (newCompute.([]interface{})[0].(map[string]interface{}))["wait_for_ssh_timeout"].(int) > 0 && len(sshUser) > 0 && len(sshPrivateKey) > 0 {
 			// Trying graceful node shutdown
 			if _, err = runSshCommand(nodeConfig, sshUser, sshPrivateKey, "sudo shutdown -h 0"); err != nil {
 				err = fmt.Errorf("resourceUpdateServer(compute): runSshCommand(shutdown) error: %s", err)
@@ -772,7 +778,7 @@ func resourceUpdateServerCompute(d *schema.ResourceData, meta interface{}) (err 
 			meta.(*FlexbotConfig).UpdateManagerSetError(err)
 			return
 		}
-		if (newCompute.([]interface{})[0].(map[string]interface{}))["wait_for_ssh_timeout"].(int) > 0 {
+		if (newCompute.([]interface{})[0].(map[string]interface{}))["wait_for_ssh_timeout"].(int) > 0 && len(sshUser) > 0 && len(sshPrivateKey) > 0 {
 			if err = waitForSsh(nodeConfig, (newCompute.([]interface{})[0].(map[string]interface{}))["wait_for_ssh_timeout"].(int), sshUser, sshPrivateKey); err != nil {
 				meta.(*FlexbotConfig).UpdateManagerSetError(err)
 				return
@@ -785,6 +791,9 @@ func resourceUpdateServerCompute(d *schema.ResourceData, meta interface{}) (err 
 					err = fmt.Errorf("resourceUpdateServer(compute): error: %s", err)
 					meta.(*FlexbotConfig).UpdateManagerSetError(err)
 					return
+				}
+				if meta.(*FlexbotConfig).NodeGraceTimeout > 0 {
+					time.Sleep(time.Duration(meta.(*FlexbotConfig).NodeGraceTimeout) * time.Second)
 				}
 			}
 		}
@@ -811,30 +820,30 @@ func resourceUpdateServerStorage(d *schema.ResourceData, meta interface{}) (err 
 	if nodeConfig, err = setFlexbotInput(d, p); err != nil {
 		return
 	}
-	log.Printf("[INFO] Updating Server Storage for node %s", nodeConfig.Compute.HostName)
-	err = meta.(*FlexbotConfig).UpdateManagerAcquire()
-	defer meta.(*FlexbotConfig).UpdateManagerRelease()
-	if err != nil {
-		err = fmt.Errorf("resourceUpdateServer(storage): last resource instance update returned error: %s", err)
-		return
-	}
-	if powerState, err = ucsm.GetServerPowerState(nodeConfig); err != nil {
-		meta.(*FlexbotConfig).UpdateManagerSetError(err)
-		return
-	}
-	if rancherClient != nil {
-		if nodeId, err = rancherClient.GetNode(clusterId, network["node"].([]interface{})[0].(map[string]interface{})["ip"].(string)); err != nil {
-			err = fmt.Errorf("resourceUpdateServer(storage): error: %s", err)
-			meta.(*FlexbotConfig).UpdateManagerSetError(err)
-			return
-		}
-	}
 	oldStorage, newStorage := d.GetChange("storage")
 	oldBootLun := (oldStorage.([]interface{})[0].(map[string]interface{}))["boot_lun"].([]interface{})[0].(map[string]interface{})
 	newBootLun := (newStorage.([]interface{})[0].(map[string]interface{}))["boot_lun"].([]interface{})[0].(map[string]interface{})
 	oldSeedLun := (oldStorage.([]interface{})[0].(map[string]interface{}))["seed_lun"].([]interface{})[0].(map[string]interface{})
 	newSeedLun := (newStorage.([]interface{})[0].(map[string]interface{}))["seed_lun"].([]interface{})[0].(map[string]interface{})
 	if oldBootLun["os_image"].(string) != newBootLun["os_image"].(string) || oldSeedLun["seed_template"].(string) != newSeedLun["seed_template"].(string) {
+		log.Printf("[INFO] Updating Server Storage image for node %s", nodeConfig.Compute.HostName)
+		err = meta.(*FlexbotConfig).UpdateManagerAcquire()
+		defer meta.(*FlexbotConfig).UpdateManagerRelease()
+		if err != nil {
+			err = fmt.Errorf("resourceUpdateServer(storage): last resource instance update returned error: %s", err)
+			return
+		}
+		if powerState, err = ucsm.GetServerPowerState(nodeConfig); err != nil {
+			meta.(*FlexbotConfig).UpdateManagerSetError(err)
+			return
+		}
+		if rancherClient != nil {
+			if nodeId, err = rancherClient.GetNode(clusterId, network["node"].([]interface{})[0].(map[string]interface{})["ip"].(string)); err != nil {
+				err = fmt.Errorf("resourceUpdateServer(storage): error: %s", err)
+				meta.(*FlexbotConfig).UpdateManagerSetError(err)
+				return
+			}
+		}
 		nodeConfig.Storage.BootLun.OsImage.Name = newBootLun["os_image"].(string)
 		nodeConfig.Storage.SeedLun.SeedTemplate.Location = newSeedLun["seed_template"].(string)
 		log.Printf("[INFO] Running boot storage preflight check")
@@ -884,7 +893,7 @@ func resourceUpdateServerStorage(d *schema.ResourceData, meta interface{}) (err 
 			meta.(*FlexbotConfig).UpdateManagerSetError(err)
 			return
 		}
-		if compute["wait_for_ssh_timeout"].(int) > 0 && err == nil {
+		if compute["wait_for_ssh_timeout"].(int) > 0  && len(sshUser) > 0 && len(sshPrivateKey) > 0 && err == nil {
 			if err = waitForSsh(nodeConfig, compute["wait_for_ssh_timeout"].(int), sshUser, sshPrivateKey); err == nil {
 				for _, cmd := range compute["ssh_node_init_commands"].([]interface{}) {
 					var cmdOutput string
@@ -906,6 +915,55 @@ func resourceUpdateServerStorage(d *schema.ResourceData, meta interface{}) (err 
 			if err != nil {
 				err = fmt.Errorf("resourceUpdateServer(storage): error: %s", err)
 				meta.(*FlexbotConfig).UpdateManagerSetError(err)
+				return
+			}
+			if meta.(*FlexbotConfig).NodeGraceTimeout > 0 {
+				time.Sleep(time.Duration(meta.(*FlexbotConfig).NodeGraceTimeout) * time.Second)
+			}
+		}
+	}
+	var resizeBootLun, resizeDataLun bool
+	if oldBootLun["size"].(int) != newBootLun["size"].(int) {
+		log.Printf("[INFO] Re-sizing Server Storage boot LUN for node %s", nodeConfig.Compute.HostName)
+		resizeBootLun = true
+	}
+	if len((oldStorage.([]interface{})[0].(map[string]interface{}))["data_lun"].([]interface{})) > 0 && len((newStorage.([]interface{})[0].(map[string]interface{}))["data_lun"].([]interface{})) > 0 {
+		oldDataLun := (oldStorage.([]interface{})[0].(map[string]interface{}))["data_lun"].([]interface{})[0].(map[string]interface{})
+		newDataLun := (newStorage.([]interface{})[0].(map[string]interface{}))["data_lun"].([]interface{})[0].(map[string]interface{})
+		if oldDataLun["size"].(int) != newDataLun["size"].(int) {
+			log.Printf("[INFO] Re-sizing Server Storage data LUN for node %s", nodeConfig.Compute.HostName)
+			resizeDataLun = true
+		}
+	}
+	if resizeBootLun || resizeDataLun {
+		if err = ontap.ResizeBootStorage(nodeConfig); err != nil {
+			err = fmt.Errorf("resourceUpdateServer(storage): error: %s", err)
+			return
+		}
+	}
+	if compute["wait_for_ssh_timeout"].(int) > 0 && len(sshUser) > 0 && len(sshPrivateKey) > 0 {
+		if resizeBootLun {
+			for _, cmd := range compute["ssh_node_bootdisk_resize_commands"].([]interface{}) {
+				var cmdOutput string
+				log.Printf("[INFO] Running SSH command on node %s: %s", nodeConfig.Compute.HostName, cmd.(string))
+				if cmdOutput, err = runSshCommand(nodeConfig, sshUser, sshPrivateKey, cmd.(string)); err != nil {
+					return
+				}
+				if len(cmdOutput) > 0 {
+					log.Printf("[DEBUG] completed SSH command: exec: %s, output: %s", cmd.(string), cmdOutput)
+				}
+			}
+		}
+		if resizeDataLun {
+			for _, cmd := range compute["ssh_node_datadisk_resize_commands"].([]interface{}) {
+				var cmdOutput string
+				log.Printf("[INFO] Running SSH command on node %s: %s", nodeConfig.Compute.HostName, cmd.(string))
+				if cmdOutput, err = runSshCommand(nodeConfig, sshUser, sshPrivateKey, cmd.(string)); err != nil {
+					return
+				}
+				if len(cmdOutput) > 0 {
+					log.Printf("[DEBUG] completed SSH command: exec: %s, output: %s", cmd.(string), cmdOutput)
+				}
 			}
 		}
 	}

@@ -438,7 +438,7 @@ func DiscoverBootStorage(nodeConfig *config.NodeConfig) (storageExists bool, err
 	if err != nil {
 		err = fmt.Errorf("DiscoverBootStorage(): LunGetAPI() failure: %s", err)
 		return
-	}	
+	}
 	if response.Results.NumRecords > 0 {
 		nodeConfig.Storage.DataLun.Size = int(math.Round(float64(response.Results.AttributesList.LunAttributes[0].Size)/1024/1024/1024))
 	}
@@ -484,6 +484,87 @@ func DiscoverBootStorage(nodeConfig *config.NodeConfig) (storageExists bool, err
 		} else {
 			err = fmt.Errorf("CreateBootStorage: DiscoverIscsiLIFs(): no iSCSI LIF's found for fabric %s: %s", nodeConfig.Network.IscsiInitiator[i].Name, err)
 			return
+		}
+	}
+	return
+}
+
+func ResizeBootStorage(nodeConfig *config.NodeConfig) (err error) {
+	var c *ontap.Client
+	var response *ontap.LunGetResponse
+	var options *ontap.LunGetOptions
+	var bootLunSize, dataLunSize int
+	if c, err = CreateCdotClient(nodeConfig); err != nil {
+		return
+	}
+	bootLunPath := "/vol/" + nodeConfig.Storage.VolumeName + "/" + nodeConfig.Storage.BootLun.Name
+	dataLunPath := "/vol/" + nodeConfig.Storage.VolumeName + "/" + nodeConfig.Storage.DataLun.Name
+	options = &ontap.LunGetOptions{
+		MaxRecords: 1,
+		Query: &ontap.LunQuery{
+			LunInfo: &ontap.LunInfo{
+				Path: bootLunPath,
+			},
+		},
+	}
+	response, _, err = c.LunGetAPI(options)
+	if err != nil {
+		err = fmt.Errorf("ResizeBootStorage(): LunGetAPI() failure: %s", err)
+		return
+	}
+	if response.Results.NumRecords == 0 {
+		err = fmt.Errorf("ResizeBootStorage(): LunGetAPI() failure: boot LUN %s not found", bootLunPath)
+		return
+	}
+	bootLunSize = int(math.Round(float64(response.Results.AttributesList.LunAttributes[0].Size)/1024/1024/1024))
+	if bootLunSize > nodeConfig.Storage.BootLun.Size {
+		err = fmt.Errorf("ResizeBootStorage(): cannot shrink boot LUN to requested size %d", nodeConfig.Storage.BootLun.Size)
+		return
+	}
+	options = &ontap.LunGetOptions{
+		MaxRecords: 1,
+		Query: &ontap.LunQuery{
+			LunInfo: &ontap.LunInfo{
+				Path: dataLunPath,
+			},
+		},
+	}
+	response, _, err = c.LunGetAPI(options)
+	if err != nil {
+		err = fmt.Errorf("ResizeBootStorage(): LunGetAPI() failure: %s", err)
+		return
+	}
+	if response.Results.NumRecords > 0 {
+		dataLunSize = int(math.Round(float64(response.Results.AttributesList.LunAttributes[0].Size)/1024/1024/1024))
+		if dataLunSize > nodeConfig.Storage.DataLun.Size {
+			err = fmt.Errorf("ResizeBootStorage(): cannot shrink data LUN to requested size %d", nodeConfig.Storage.DataLun.Size)
+			return
+		}
+	}
+	if nodeConfig.Storage.BootLun.Size > bootLunSize || nodeConfig.Storage.DataLun.Size > dataLunSize {
+		if _, _, err = c.VolumeSizeAPI(nodeConfig.Storage.VolumeName, strconv.Itoa((nodeConfig.Storage.DataLun.Size + nodeConfig.Storage.BootLun.Size) * 2) + "g"); err != nil {
+			err = fmt.Errorf("ResizeBootStorage(): VolumeSizeAPI() failure: %s", err)
+			return
+		}
+		if nodeConfig.Storage.BootLun.Size > bootLunSize {
+			resizeLunOptions := &ontap.LunResizeOptions{
+				Path: bootLunPath,
+				Size: nodeConfig.Storage.BootLun.Size * 1024 * 1024 * 1024,
+			}
+			if _, _, err = c.LunResizeAPI(resizeLunOptions); err != nil {
+				err = fmt.Errorf("ResizeBootStorage():: LunResizeAPI() failure: %s", err)
+				return
+			}
+		}
+		if nodeConfig.Storage.DataLun.Size > dataLunSize {
+			resizeLunOptions := &ontap.LunResizeOptions{
+				Path: dataLunPath,
+				Size: nodeConfig.Storage.DataLun.Size * 1024 * 1024 * 1024,
+			}
+			if _, _, err = c.LunResizeAPI(resizeLunOptions); err != nil {
+				err = fmt.Errorf("ResizeBootStorage():: LunResizeAPI() failure: %s", err)
+				return
+			}
 		}
 	}
 	return

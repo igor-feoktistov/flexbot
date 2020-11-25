@@ -3,8 +3,8 @@ package flexbot
 import (
 	"fmt"
 
-	"github.com/hashicorp/terraform/helper/schema"
-	"github.com/hashicorp/terraform/terraform"
+	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
+        "github.com/hashicorp/terraform-plugin-sdk/terraform"
 	"flexbot/pkg/rancher"
 	rancherManagementClient "github.com/rancher/rancher/pkg/client/generated/management/v3"
 )
@@ -169,15 +169,10 @@ func Provider() terraform.ResourceProvider {
 							Type:     schema.TypeString,
 							Required: true,
 						},
-						"max_unavailable_controlplane": {
+						"node_grace_timeout": {
 							Optional: true,
 							Type:     schema.TypeInt,
-							Default:  1,
-						},
-						"max_unavailable_worker": {
-							Optional: true,
-							Type:     schema.TypeInt,
-							Default:  1,
+							Default:  0,
 						},
 						"drain_input": {
 							Type:     schema.TypeList,
@@ -247,6 +242,7 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 		config = &FlexbotConfig{
 			FlexbotProvider: d,
 			RancherConfig: rancherConfig,
+			NodeGraceTimeout: rancher_api["node_grace_timeout"].(int),
 		}
 		if err = rancherConfig.ManagementClient(); err != nil {
 			err = fmt.Errorf("providerConfigure(): rancherConfig.ManagementClient() error: \"%s\"", err)
