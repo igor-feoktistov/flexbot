@@ -4,10 +4,10 @@ nodes = {
   compute_blade_spec_dn = ["","",""]
   compute_blade_spec_model = "UCSB-B200-M5"
   compute_blade_spec_total_memory = "65536-262144"
-  os_image = "ubuntu-18.04.01-iboot"
-  seed_template = "../../../examples/cloud-init/ubuntu-18.04-cloud-init.template"
-  boot_lun_size = 24
-  data_lun_size = 128
+  os_image = "ubuntu-18.04.05.01-iboot"
+  seed_template = "ubuntu-18.04-cloud-init.template"
+  boot_lun_size = 32
+  data_lun_size = 64
 }
 
 flexbot_credentials = {
@@ -37,7 +37,7 @@ infoblox_config = {
 
 node_compute_config = {
   sp_org = "org-root/org-Kubernetes"
-  sp_template = "org-root/org-Kubernetes/ls-K8S-01-SPD-01"
+  sp_template = "org-root/org-Kubernetes/ls-K8S-01-SPD-0"
   ssh_user = "cloud-user"
   ssh_public_key_path = "~/.ssh/id_rsa.pub"
   ssh_private_key_path = "~/.ssh/id_rsa"
@@ -75,6 +75,23 @@ node_network_config = {
 }
 
 snapshots = []
-output_path = "output"
+
+rke_kubernetes_version = "v1.19.3-rancher1-2"
+
+rancher_helm_repo = "https://releases.rancher.com/server-charts/latest"
+
+tls_secret_manifest = "manifests/tls-rancher-ingress.yaml"
+
+docker_version = "19.03"
+
+rancher_version = "2.5.2"
+
 rancher_server_url = "rancher.example.com"
+
+rancher_api_enabled = false
+
+output_path = "output"
+
 pass_phrase = "secret"
+
+token_key = "token-jzzwn:f06lm59d27q5sdhd<...skip...>erhxgz4kdbvflvn06rsvq284h"

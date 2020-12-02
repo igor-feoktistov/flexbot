@@ -92,6 +92,7 @@ provider "flexbot" {
     }
   }
   rancher_api {
+    enabled = true
     api_url = var.rancher_config.api_url
     token_key = var.token_key
     insecure = true

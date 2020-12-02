@@ -389,8 +389,8 @@ func DeleteBootLUNs(nodeConfig *config.NodeConfig) (err error) {
 
 func DiscoverBootStorage(nodeConfig *config.NodeConfig) (storageExists bool, err error) {
 	var c *ontap.Client
-	var response *ontap.LunGetResponse
-	var options *ontap.LunGetOptions
+	var lunResponse *ontap.LunGetResponse
+	var lunOptions *ontap.LunGetOptions
 	if c, err = CreateCdotClient(nodeConfig); err != nil {
 		return
 	}
@@ -405,7 +405,7 @@ func DiscoverBootStorage(nodeConfig *config.NodeConfig) (storageExists bool, err
 	if !storageExists {
 		return
 	}
-	options = &ontap.LunGetOptions{
+	lunOptions = &ontap.LunGetOptions{
 		MaxRecords: 1,
 		Query: &ontap.LunQuery{
 			LunInfo: &ontap.LunInfo{
@@ -413,20 +413,20 @@ func DiscoverBootStorage(nodeConfig *config.NodeConfig) (storageExists bool, err
 			},
 		},
 	}
-	response, _, err = c.LunGetAPI(options)
+	lunResponse, _, err = c.LunGetAPI(lunOptions)
 	if err != nil {
 		err = fmt.Errorf("DiscoverBootStorage(): LunGetAPI() failure: %s", err)
 		return
 	}
-	if response.Results.NumRecords == 0 {
+	if lunResponse.Results.NumRecords == 0 {
 		err = fmt.Errorf("DiscoverBootStorage(): LunGetAPI() failure: boot LUN %s not found", bootLunPath)
 		return
 	}
-    	if response.Results.AttributesList.LunAttributes[0].Comment != "" {
-    		nodeConfig.Storage.BootLun.OsImage.Name = response.Results.AttributesList.LunAttributes[0].Comment
+    	if lunResponse.Results.AttributesList.LunAttributes[0].Comment != "" {
+    		nodeConfig.Storage.BootLun.OsImage.Name = lunResponse.Results.AttributesList.LunAttributes[0].Comment
 	}
-	nodeConfig.Storage.BootLun.Size = int(math.Round(float64(response.Results.AttributesList.LunAttributes[0].Size)/1024/1024/1024))
-	options = &ontap.LunGetOptions{
+	nodeConfig.Storage.BootLun.Size = int(math.Round(float64(lunResponse.Results.AttributesList.LunAttributes[0].Size)/1024/1024/1024))
+	lunOptions = &ontap.LunGetOptions{
 		MaxRecords: 1,
 		Query: &ontap.LunQuery{
 			LunInfo: &ontap.LunInfo{
@@ -434,15 +434,15 @@ func DiscoverBootStorage(nodeConfig *config.NodeConfig) (storageExists bool, err
 			},
 		},
 	}
-	response, _, err = c.LunGetAPI(options)
+	lunResponse, _, err = c.LunGetAPI(lunOptions)
 	if err != nil {
 		err = fmt.Errorf("DiscoverBootStorage(): LunGetAPI() failure: %s", err)
 		return
 	}
-	if response.Results.NumRecords > 0 {
-		nodeConfig.Storage.DataLun.Size = int(math.Round(float64(response.Results.AttributesList.LunAttributes[0].Size)/1024/1024/1024))
+	if lunResponse.Results.NumRecords > 0 {
+		nodeConfig.Storage.DataLun.Size = int(math.Round(float64(lunResponse.Results.AttributesList.LunAttributes[0].Size)/1024/1024/1024))
 	}
-	options = &ontap.LunGetOptions{
+	lunOptions = &ontap.LunGetOptions{
 		MaxRecords: 1,
 		Query: &ontap.LunQuery{
 			LunInfo: &ontap.LunInfo{
@@ -450,23 +450,23 @@ func DiscoverBootStorage(nodeConfig *config.NodeConfig) (storageExists bool, err
 			},
 		},
 	}
-	response, _, err = c.LunGetAPI(options)
+	lunResponse, _, err = c.LunGetAPI(lunOptions)
 	if err != nil {
 		err = fmt.Errorf("DiscoverBootStorage(): LunGetAPI() failure: %s", err)
 		return
 	}	
-	if response.Results.NumRecords == 0 {
+	if lunResponse.Results.NumRecords == 0 {
 		err = fmt.Errorf("DiscoverBootStorage(): LunGetAPI() failure: seed LUN %s not found", seedLunPath)
 		return
 	}
-    	if response.Results.AttributesList.LunAttributes[0].Comment != "" {
-                nodeConfig.Storage.SeedLun.SeedTemplate.Location = response.Results.AttributesList.LunAttributes[0].Comment
-		nodeConfig.Storage.SeedLun.SeedTemplate.Name = filepath.Base(response.Results.AttributesList.LunAttributes[0].Comment)
+    	if lunResponse.Results.AttributesList.LunAttributes[0].Comment != "" {
+                nodeConfig.Storage.SeedLun.SeedTemplate.Location = lunResponse.Results.AttributesList.LunAttributes[0].Comment
+		nodeConfig.Storage.SeedLun.SeedTemplate.Name = filepath.Base(lunResponse.Results.AttributesList.LunAttributes[0].Comment)
 	}
 	var iscsiNodeGetNameResponse *ontap.IscsiNodeGetNameResponse
 	// Fetching iSCSI target node name
 	if iscsiNodeGetNameResponse, _, err = c.IscsiNodeGetNameAPI(); err != nil {
-		err = fmt.Errorf("DiscoverBootStorage: IscsiNodeGetNameAPI() failure: %s", err)
+		err = fmt.Errorf("DiscoverBootStorage(): IscsiNodeGetNameAPI() failure: %s", err)
 		return
 	}
 	var lifs []*ontap.NetInterfaceInfo
@@ -482,9 +482,23 @@ func DiscoverBootStorage(nodeConfig *config.NodeConfig) (storageExists bool, err
 				nodeConfig.Network.IscsiInitiator[i].IscsiTarget.Interfaces = append(nodeConfig.Network.IscsiInitiator[i].IscsiTarget.Interfaces, lif.Address)
 			}
 		} else {
-			err = fmt.Errorf("CreateBootStorage: DiscoverIscsiLIFs(): no iSCSI LIF's found for fabric %s: %s", nodeConfig.Network.IscsiInitiator[i].Name, err)
+			err = fmt.Errorf("DiscoverBootStorage(): DiscoverIscsiLIFs(): no iSCSI LIF's found for fabric %s: %s", nodeConfig.Network.IscsiInitiator[i].Name, err)
 			return
 		}
+	}
+	// Discover snapshots
+	var snapOptions *ontap.SnapshotListInfoOptions
+	var snapResponse *ontap.SnapshotListInfoResponse
+	snapOptions = &ontap.SnapshotListInfoOptions {
+		Volume: nodeConfig.Storage.VolumeName,
+	}
+	if snapResponse, _, err = c.SnapshotListInfoAPI(snapOptions); err != nil {
+		err = fmt.Errorf("DiscoverBootStorage(): SnapshotListInfoAPI() failure: %s", err)
+		return
+	}
+	nodeConfig.Storage.Snapshots = []string{}
+	for _, snapshot := range snapResponse.Results.Snapshots {
+		nodeConfig.Storage.Snapshots = append(nodeConfig.Storage.Snapshots, snapshot.Name)
 	}
 	return
 }
@@ -564,6 +578,50 @@ func ResizeBootStorage(nodeConfig *config.NodeConfig) (err error) {
 			if _, _, err = c.LunResizeAPI(resizeLunOptions); err != nil {
 				err = fmt.Errorf("ResizeBootStorage():: LunResizeAPI() failure: %s", err)
 				return
+			}
+		}
+	}
+	return
+}
+
+func LunRestoreMapping(nodeConfig *config.NodeConfig) (err error) {
+	var c *ontap.Client
+	var exists, mapped bool
+	if c, err = CreateCdotClient(nodeConfig); err != nil {
+		return
+	}
+	exists, err = util.IgroupExists(c, nodeConfig.Storage.IgroupName)
+	if err != nil {
+		err = fmt.Errorf("LunRestoreMapping: IgroupExists() failure: %s", err)
+		return
+	}
+	if !exists {
+		err = fmt.Errorf("LunRestoreMapping: igroup %s not found", nodeConfig.Storage.IgroupName)
+		return
+	}
+	for _, lun := range []config.Lun{nodeConfig.Storage.BootLun.Lun, nodeConfig.Storage.SeedLun.Lun, nodeConfig.Storage.DataLun} {
+		lunPath := "/vol/" + nodeConfig.Storage.VolumeName + "/" + lun.Name
+		exists, err = util.LunExists(c, lunPath)
+		if err != nil {
+			err = fmt.Errorf("LunRestoreMapping: LunExists() failure: %s", err)
+			return
+		}
+		if exists {
+			mapped, err = util.IsLunMapped(c, lunPath, nodeConfig.Storage.IgroupName)
+			if err != nil {
+				err = fmt.Errorf("LunRestoreMapping: IsLunMapped() failure: %s", err)
+				return
+			}
+			if !mapped {
+				lunMapOptions := &ontap.LunMapOptions{
+					LunId:          lun.Id,
+					InitiatorGroup: nodeConfig.Storage.IgroupName,
+					Path:           lunPath,
+				}
+				if _, _, err = c.LunMapAPI(lunMapOptions); err != nil {
+					err = fmt.Errorf("LunRestoreMapping: LunMapAPI() failure: %s", err)
+					return
+				}
 			}
 		}
 	}

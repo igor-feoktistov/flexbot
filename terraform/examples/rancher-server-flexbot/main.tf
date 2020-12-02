@@ -31,6 +31,20 @@ provider "flexbot" {
       zapi_version = var.zapi_version
     }
   }
+  rancher_api {
+    enabled = var.rancher_api_enabled
+    api_url = "https://${var.rancher_server_url}"
+    token_key = var.token_key
+    insecure = true
+    cluster_id = "local"
+    drain_input {
+      force = true
+      delete_local_data = true
+      grace_period = 60
+      ignore_daemon_sets = true
+      timeout = 1800
+    }
+  }
 }
 
 # Flexbot hosts
@@ -50,6 +64,12 @@ resource "flexbot_server" "host" {
     wait_for_ssh_timeout = 1800
     ssh_user = var.node_compute_config.ssh_user
     ssh_private_key = file(var.node_compute_config.ssh_private_key_path)
+    ssh_node_init_commands = [
+      "sudo cloud-init status --wait || true",
+      "curl https://releases.rancher.com/install-docker/${var.docker_version}.sh | sh",
+    ]
+    ssh_node_bootdisk_resize_commands = ["sudo /usr/sbin/growbootdisk"]
+    ssh_node_datadisk_resize_commands = ["sudo /usr/sbin/growdatadisk"]
   }
   # cDOT storage
   storage {
@@ -113,29 +133,10 @@ resource "flexbot_server" "host" {
     cloud_user = var.node_compute_config.ssh_user
     ssh_pub_key = file(var.node_compute_config.ssh_public_key_path)
   }
-  # Connection info for provisioners
-  connection {
-    type = "ssh"
-    host = self.network[0].node[0].ip
-    user = var.node_compute_config.ssh_user
-    private_key = file(var.node_compute_config.ssh_private_key_path)
-    timeout = "10m"
-  }
-  # Provisioner to wait until cloud-init finishes
-  provisioner "remote-exec" {
-    inline = [
-      "sudo cloud-init status --wait > /dev/null 2>&1 || true",
-    ]
-  }
-  # Provisioner to install docker
-  provisioner "remote-exec" {
-    inline = [
-      "curl https://releases.rancher.com/install-docker/19.03.sh | sh > /dev/null 2>&1",
-    ]
-  }
 }
 
 resource rke_cluster "cluster" {
+  kubernetes_version = var.rke_kubernetes_version
   dynamic "nodes" {
     for_each = [for instance in flexbot_server.host: {
       ip = instance.network[0].node[0].ip
@@ -150,11 +151,15 @@ resource rke_cluster "cluster" {
       ssh_key = file(var.node_compute_config.ssh_private_key_path)
     }
   }
+  network {
+    plugin = "canal"
+  }
   services {
     etcd {
       backup_config {
-        interval_hours = 12
-        retention = 6
+        enabled = true
+        interval_hours = 2
+        retention = 360
       }
     }
     kube_api {
@@ -169,11 +174,27 @@ resource rke_cluster "cluster" {
     kubelet {
       cluster_domain = "cluster.local"
       cluster_dns_server = "172.20.0.10"
+      extra_args = {
+        max-pods = "100"
+      }
     }
   }
   ingress {
     provider = "nginx"
   }
+  upgrade_strategy {
+    drain = true
+    drain_input {
+      force = true
+      delete_local_data = true
+      grace_period = 60
+      ignore_daemon_sets = true
+      timeout = 1800
+    }
+    max_unavailable_controlplane = "1"
+    max_unavailable_worker = "1"
+  }
+  addons_include = ["${var.tls_secret_manifest}"]
 }
 
 resource "local_file" "kubeconfig" {
@@ -191,42 +212,17 @@ resource "local_file" "rkeconfig" {
 }
 
 provider "helm" {
-  version = "1.2.2"
   kubernetes {
     config_path = format("${local.output_path}/kubeconfig")
   }
 }
 
-resource "helm_release" "cert-manager" {
-  depends_on = [local_file.kubeconfig]
-  name = "cert-manager"
-  chart = "cert-manager"
-  repository = "https://charts.jetstack.io"
-  namespace = "cert-manager"
-  create_namespace = "true"
-  wait = "true"
-
-  set {
-    name = "namespace"
-    value = "cert-manager"
-  }
-
-  set {
-    name = "version"
-    value = "v0.15.1"
-  }
-
-  set {
-    name = "installCRDs"
-    value = "true"
-  }
-}
-
 resource "helm_release" "rancher" {
-  depends_on = [helm_release.cert-manager]
+  depends_on = [rke_cluster.cluster]
   name = "rancher"
+  repository = var.rancher_helm_repo
   chart = "rancher"
-  repository = "https://releases.rancher.com/server-charts/stable"
+  version = var.rancher_version
   namespace = "cattle-system"
   create_namespace = "true"
   wait = "true"
@@ -242,7 +238,12 @@ resource "helm_release" "rancher" {
   }
 
   set {
-    name = "ingress.extraAnnotations.nginx\\.ingress\\.kubernetes\\.io/server-alias"
-    value = join(" ", formatlist("%s.nip.io", [for instance in flexbot_server.host : instance.network[0].node[0].ip]))
+    name = "ingress.tls.source"
+    value = "secret"
+  }
+
+  set {
+    name = "useBundledSystemChart"
+    value = "true"
   }
 }

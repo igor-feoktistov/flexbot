@@ -14,7 +14,9 @@ type UpdateManager struct {
 }
 
 type FlexbotConfig struct {
+	Sync                  sync.Mutex
 	FlexbotProvider       *schema.ResourceData
+	RancherApiEnabled     bool
 	RancherConfig         *rancher.Config
 	RancherNodeDrainInput *rancherManagementClient.NodeDrainInput
 	NodeGraceTimeout      int

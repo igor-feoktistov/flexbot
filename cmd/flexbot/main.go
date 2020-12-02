@@ -484,7 +484,7 @@ func main() {
 		if nodeConfig.Compute.HostName == "" || *optSnapshotName == "" {
 			err = fmt.Errorf("main() failure: expected compute.hostName and snapshot name")
 		} else {
-			err = ontap.CreateSnapshot(&nodeConfig, *optSnapshotName)
+			err = ontap.CreateSnapshot(&nodeConfig, *optSnapshotName, "")
 		}
 		baseResult.DumpResult(baseResult, *optDumpResult, *optEncodingFormat, err)
 	case "deleteSnapshot":

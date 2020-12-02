@@ -1,3 +1,14 @@
+## 1.4.2 (December 2, 2020)
+
+FEATURES:
+
+* This release is all about improved Terraform provider v1.4.3
+* See Terraform CHANGELOG for more details.
+
+ENHANCEMENTS:
+
+BUG FIXES:
+
 ## 1.4.2 (November 24, 2020)
 
 FEATURES:

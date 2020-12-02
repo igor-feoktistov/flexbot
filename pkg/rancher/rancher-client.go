@@ -289,7 +289,7 @@ func (client *Client) GetNode(clusterId string, nodeIpAddr string) (nodeId strin
 	return
 }
 
-func (client *Client) NodeWaitForState(nodeId string, state string, timeout int) (err error) {
+func (client *Client) NodeWaitForState(nodeId string, states string, timeout int) (err error) {
 	var node *managementClient.Node
 	var nodeLastState string
 	giveupTime := time.Now().Add(time.Second * time.Duration(timeout))
@@ -297,13 +297,15 @@ func (client *Client) NodeWaitForState(nodeId string, state string, timeout int)
             	if node, err = client.Management.Node.ByID(nodeId); err != nil {
             		return err
             	}
-            	if node.State == state {
-            		return
+            	for _, state := range strings.Split(states, ",") {
+            		if node.State == state {
+            			return
+            		}
             	}
             	nodeLastState = node.State
             	time.Sleep(5 * time.Second)
         }
-    	err = fmt.Errorf("rancher.NodeWaitForState(): wait for node state exceeded timeout=%d: expected state=%s, last state=%s", nodeLastState)
+    	err = fmt.Errorf("rancher.NodeWaitForState(): wait for node state exceeded timeout=%d: expected states=%s, last state=%s", timeout, states, nodeLastState)
         return
 }
 

@@ -2,6 +2,7 @@ package flexbot
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
         "github.com/hashicorp/terraform-plugin-sdk/terraform"
@@ -152,6 +153,11 @@ func Provider() terraform.ResourceProvider {
 				MaxItems: 1,
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{
+						"enabled": {
+							Type:     schema.TypeBool,
+							Optional: true,
+							Default:  false,
+						},
 						"api_url": {
 							Type:     schema.TypeString,
 							Required: true,
@@ -240,16 +246,22 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 			Retries: 3,
     		}
 		config = &FlexbotConfig{
+			Sync: sync.Mutex{},
 			FlexbotProvider: d,
+			RancherApiEnabled: rancher_api["enabled"].(bool),
 			RancherConfig: rancherConfig,
 			NodeGraceTimeout: rancher_api["node_grace_timeout"].(int),
 		}
-		if err = rancherConfig.ManagementClient(); err != nil {
-			err = fmt.Errorf("providerConfigure(): rancherConfig.ManagementClient() error: \"%s\"", err)
+		if rancher_api["enabled"].(bool) {
+			if err = rancherConfig.ManagementClient(); err != nil {
+				err = fmt.Errorf("providerConfigure(): rancherConfig.ManagementClient() error: \"%s\"", err)
+			}
 		}
 	} else {
 		config = &FlexbotConfig{
+			Sync: sync.Mutex{},
 			FlexbotProvider: d,
+			RancherApiEnabled: false,
 		}
 	}
 	return config, err

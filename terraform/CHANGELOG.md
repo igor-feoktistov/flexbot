@@ -1,4 +1,18 @@
-## 1.4.2 (November 20, 2020)
+## 1.4.3 (December 2, 2020)
+
+FEATURES:
+
+* **New Argument:** `rancher_api/enabled` - (Optional) Gives a flexibility to define `rancher_api` which is not functional yet (spin-up Rancher Management Server as an example).
+
+ENHANCEMENTS:
+
+* Migrated to new Hashicorp terraform-plugin-sdk
+
+BUG FIXES:
+
+* Fixed provider crash issue in resourceDelete routine in case of `rancher_api` is not defined.
+
+## 1.4.2 (November 24, 2020)
 
 FEATURES:
 

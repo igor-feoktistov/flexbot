@@ -52,8 +52,47 @@ variable "zapi_version" {
   default = ""
 }
 
+variable "rke_kubernetes_version" {
+  type = string
+  description = "RKE Kubernetes version"
+  default = "v1.18.9-rancher1-1"
+}
+
+variable "rancher_helm_repo" {
+  type = string
+  description = "Rancher Management Server Helm repository URL"
+  default = ""
+}
+
+variable "rancher_version" {
+  type = string
+  description = "Rancher Management Server version"
+  default = ""
+}
+
+variable "docker_version" {
+  type = string
+  description = "Docker version"
+  default = ""
+}
+
+variable "tls_secret_manifest" {
+  type = string
+  description = "Rancher TLS Ingress Secret manifest"
+  default = ""
+}
+
+
 variable "pass_phrase" {
   type = string
+}
+
+variable "token_key" {
+  type = string
+}
+
+variable "rancher_api_enabled" {
+  type = bool
 }
 
 variable "output_path" {

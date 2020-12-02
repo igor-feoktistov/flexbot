@@ -54,6 +54,8 @@ provider "flexbot" {
   #  - graceful node blade specs updates (cordon/drain/uncordon);
   #  - graceful node image/cloud-init updates (cordon/drain/uncordon).
   rancher_api {
+    # Optional (default is false)
+    enabled = true
     api_url = "https://rancher.example.com"
     token_key = "token-xxx"
     insecure = true

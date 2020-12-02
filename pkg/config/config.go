@@ -121,6 +121,7 @@ type Storage struct {
 	BootLun          BootLun         `yaml:"bootLun,omitempty" json:"bootLun,omitempty"`
 	DataLun          Lun             `yaml:"dataLun,omitempty" json:"dataLun,omitempty"`
 	SeedLun          SeedLun         `yaml:"seedLun,omitempty" json:"seedLun,omitempty"`
+	Snapshots        []string        `yaml:"snapshots,omitempty" json:"snapshots,omitempty"`
 }
 
 type Network struct {

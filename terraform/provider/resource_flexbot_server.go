@@ -3,11 +3,9 @@ package flexbot
 import (
 	"fmt"
 	"log"
-	"net"
 	"regexp"
 	"strings"
 	"bytes"
-	"sync"
 	"time"
 	"golang.org/x/crypto/ssh"
 
@@ -20,483 +18,9 @@ import (
         "github.com/hashicorp/terraform-plugin-sdk/helper/schema"
 )
 
-var (
-	setInputMutex = sync.Mutex{}
-	setOutputMutex = sync.Mutex{}
-)
-
 func resourceFlexbotServer() *schema.Resource {
 	return &schema.Resource{
-		Schema: map[string]*schema.Schema{
-			"compute": {
-				Type:     schema.TypeList,
-				Required: true,
-				MaxItems: 1,
-				Elem: &schema.Resource{
-					Schema: map[string]*schema.Schema{
-						"hostname": {
-							Type:     schema.TypeString,
-							Required: true,
-							ForceNew: true,
-						},
-						"sp_org": {
-							Type:     schema.TypeString,
-							Required: true,
-							ForceNew: true,
-						},
-						"sp_template": {
-							Type:     schema.TypeString,
-							Required: true,
-							ForceNew: true,
-						},
-						"sp_dn": {
-							Type:     schema.TypeString,
-							Optional: true,
-							Computed: true,
-						},
-						"safe_removal": {
-							Type:     schema.TypeBool,
-							Optional: true,
-							Default:  true,
-						},
-						"wait_for_ssh_timeout": {
-							Type:     schema.TypeInt,
-							Optional: true,
-							Default:  0,
-						},
-						"ssh_user": {
-							Type:     schema.TypeString,
-							Optional: true,
-							Default:  "",
-						},
-						"ssh_private_key": {
-							Type:     schema.TypeString,
-							Optional: true,
-							Default:  "",
-						},
-						"ssh_node_init_commands": {
-							Type:     schema.TypeList,
-							Optional: true,
-							Elem:     &schema.Schema{Type: schema.TypeString},
-						},
-						"ssh_node_bootdisk_resize_commands": {
-							Type:     schema.TypeList,
-							Optional: true,
-							Elem:     &schema.Schema{Type: schema.TypeString},
-						},
-						"ssh_node_datadisk_resize_commands": {
-							Type:     schema.TypeList,
-							Optional: true,
-							Elem:     &schema.Schema{Type: schema.TypeString},
-						},
-						"blade_spec": {
-							Type:     schema.TypeList,
-							Optional: true,
-							MaxItems: 1,
-							Elem: &schema.Resource{
-								Schema: map[string]*schema.Schema{
-									"dn": {
-										Type:     schema.TypeString,
-										Optional: true,
-										Computed: true,
-									},
-									"model": {
-										Type:     schema.TypeString,
-										Optional: true,
-									},
-									"num_of_cpus": {
-										Type:     schema.TypeString,
-										Optional: true,
-										ValidateFunc: func(val interface{}, key string) (warns []string, errs []error) {
-											v := val.(string)
-											matched, _ := regexp.MatchString(`^[0-9-]+$`, v)
-											if !matched {
-												errs = append(errs, fmt.Errorf("value %q=%s must be either number or range", key, v))
-											}
-											return
-										},
-									},
-									"num_of_cores": {
-										Type:     schema.TypeString,
-										Optional: true,
-										ValidateFunc: func(val interface{}, key string) (warns []string, errs []error) {
-											v := val.(string)
-											matched, _ := regexp.MatchString(`^[0-9-]+$`, v)
-											if !matched {
-												errs = append(errs, fmt.Errorf("value %q=%s must be either number or range", key, v))
-											}
-											return
-										},
-									},
-									"total_memory": {
-										Type:     schema.TypeString,
-										Optional: true,
-										ValidateFunc: func(val interface{}, key string) (warns []string, errs []error) {
-											v := val.(string)
-											matched, _ := regexp.MatchString(`^[0-9-]+$`, v)
-											if !matched {
-												errs = append(errs, fmt.Errorf("value %q=%s must be either number or range", key, v))
-											}
-											return
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-			"storage": {
-				Type:     schema.TypeList,
-				Required: true,
-				MaxItems: 1,
-				Elem: &schema.Resource{
-					Schema: map[string]*schema.Schema{
-						"svm_name": {
-							Type:     schema.TypeString,
-							Optional: true,
-							Computed: true,
-							ForceNew: true,
-						},
-						"image_repo_name": {
-							Type:     schema.TypeString,
-							Optional: true,
-							Computed: true,
-						},
-						"volume_name": {
-							Type:     schema.TypeString,
-							Optional: true,
-							Computed: true,
-						},
-						"igroup_name": {
-							Type:     schema.TypeString,
-							Optional: true,
-							Computed: true,
-						},
-						"boot_lun": {
-							Type:     schema.TypeList,
-							Required: true,
-							MaxItems: 1,
-							Elem: &schema.Resource{
-								Schema: map[string]*schema.Schema{
-									"name": {
-										Type:     schema.TypeString,
-										Optional: true,
-										Computed: true,
-									},
-									"id": {
-										Type:     schema.TypeInt,
-										Optional: true,
-										Computed: true,
-									},
-									"size": {
-										Type:     schema.TypeInt,
-										Required: true,
-										ValidateFunc: func(val interface{}, key string) (warns []string, errs []error) {
-											v := val.(int)
-											if v < 0 || v > 1024 {
-												errs = append(errs, fmt.Errorf("%q must be between 0 and 1024 inclusive, got: %d", key, v))
-											}
-											return
-										},
-									},
-									"os_image": {
-										Type:     schema.TypeString,
-										Required: true,
-									},
-								},
-							},
-						},
-						"seed_lun": {
-							Type:     schema.TypeList,
-							Required: true,
-							MaxItems: 1,
-							Elem: &schema.Resource{
-								Schema: map[string]*schema.Schema{
-									"name": {
-										Type:     schema.TypeString,
-										Optional: true,
-										Computed: true,
-									},
-									"id": {
-										Type:     schema.TypeInt,
-										Optional: true,
-										Computed: true,
-									},
-									"seed_template": {
-										Type:     schema.TypeString,
-										Required: true,
-									},
-								},
-							},
-						},
-						"data_lun": {
-							Type:     schema.TypeList,
-							Optional: true,
-							MaxItems: 1,
-							Elem: &schema.Resource{
-								Schema: map[string]*schema.Schema{
-									"name": {
-										Type:     schema.TypeString,
-										Optional: true,
-										Computed: true,
-									},
-									"id": {
-										Type:     schema.TypeInt,
-										Optional: true,
-										Computed: true,
-									},
-									"size": {
-										Type:     schema.TypeInt,
-										Required: true,
-										ValidateFunc: func(val interface{}, key string) (warns []string, errs []error) {
-											v := val.(int)
-											if v < 0 || v > 4096 {
-												errs = append(errs, fmt.Errorf("%q must be between 0 and 4096 inclusive, got: %d", key, v))
-											}
-											return
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-			"network": {
-				Type:     schema.TypeList,
-				Required: true,
-				MaxItems: 1,
-				ForceNew: true,
-				Elem: &schema.Resource{
-					Schema: map[string]*schema.Schema{
-						"node": {
-							Type:     schema.TypeList,
-							Required: true,
-							Elem: &schema.Resource{
-								Schema: map[string]*schema.Schema{
-									"name": {
-										Type:     schema.TypeString,
-										Required: true,
-									},
-									"macaddr": {
-										Type:     schema.TypeString,
-										Optional: true,
-										Computed: true,
-									},
-									"ip": {
-										Type:     schema.TypeString,
-										Optional: true,
-										Computed: true,
-										ValidateFunc: func(val interface{}, key string) (warns []string, errs []error) {
-											v := val.(string)
-											matched, _ := regexp.MatchString(`^\d+\.\d+\.\d+\.\d+$`, v)
-											if !matched {
-												errs = append(errs, fmt.Errorf("value %q=%s must be in IP address format", key, v))
-											}
-											return
-										},
-									},
-									"fqdn": {
-										Type:     schema.TypeString,
-										Optional: true,
-										Computed: true,
-									},
-									"subnet": {
-										Type:     schema.TypeString,
-										Required: true,
-										ValidateFunc: func(val interface{}, key string) (warns []string, errs []error) {
-											v := val.(string)
-											matched, _ := regexp.MatchString(`^\d+\.\d+\.\d+\.\d+\/\d+$`, v)
-											if !matched {
-												errs = append(errs, fmt.Errorf("subnet %q=%s must be in CIDR format", key, v))
-											}
-											return
-										},
-									},
-									"gateway": {
-										Type:     schema.TypeString,
-										Optional: true,
-										ValidateFunc: func(val interface{}, key string) (warns []string, errs []error) {
-											v := val.(string)
-											if len(v) > 0 {
-												matched, _ := regexp.MatchString(`^\d+\.\d+\.\d+\.\d+$`, v)
-												if !matched {
-													errs = append(errs, fmt.Errorf("value %q=%s must be in IP address format", key, v))
-												}
-											}
-											return
-										},
-									},
-									"dns_server1": {
-										Type:     schema.TypeString,
-										Optional: true,
-										ValidateFunc: func(val interface{}, key string) (warns []string, errs []error) {
-											v := val.(string)
-											if len(v) > 0 {
-												matched, _ := regexp.MatchString(`^\d+\.\d+\.\d+\.\d+$`, v)
-												if !matched {
-													errs = append(errs, fmt.Errorf("value %q=%s must be in IP address format", key, v))
-												}
-											}
-											return
-										},
-									},
-									"dns_server2": {
-										Type:     schema.TypeString,
-										Optional: true,
-										ValidateFunc: func(val interface{}, key string) (warns []string, errs []error) {
-											v := val.(string)
-											if len(v) > 0 {
-												matched, _ := regexp.MatchString(`^\d+\.\d+\.\d+\.\d+$`, v)
-												if !matched {
-													errs = append(errs, fmt.Errorf("value %q=%s must be in IP address format", key, v))
-												}
-											}
-											return
-										},
-									},
-									"dns_domain": {
-										Type:     schema.TypeString,
-										Optional: true,
-									},
-								},
-							},
-						},
-						"iscsi_initiator": {
-							Type:     schema.TypeList,
-							Required: true,
-							MaxItems: 2,
-							Elem: &schema.Resource{
-								Schema: map[string]*schema.Schema{
-									"name": {
-										Type:     schema.TypeString,
-										Required: true,
-									},
-									"ip": {
-										Type:     schema.TypeString,
-										Optional: true,
-										Computed: true,
-										ValidateFunc: func(val interface{}, key string) (warns []string, errs []error) {
-											v := val.(string)
-											matched, _ := regexp.MatchString(`^\d+\.\d+\.\d+\.\d+$`, v)
-											if !matched {
-												errs = append(errs, fmt.Errorf("value %q=%s must be in IP address format", key, v))
-											}
-											return
-										},
-									},
-									"fqdn": {
-										Type:     schema.TypeString,
-										Optional: true,
-										Computed: true,
-									},
-									"subnet": {
-										Type:     schema.TypeString,
-										Required: true,
-										ValidateFunc: func(val interface{}, key string) (warns []string, errs []error) {
-											v := val.(string)
-											matched, _ := regexp.MatchString(`^\d+\.\d+\.\d+\.\d+\/\d+$`, v)
-											if !matched {
-												errs = append(errs, fmt.Errorf("subnet %q=%s must be in CIDR format", key, v))
-											}
-											return
-										},
-									},
-									"gateway": {
-										Type:     schema.TypeString,
-										Optional: true,
-										Default:  "0.0.0.0",
-										ValidateFunc: func(val interface{}, key string) (warns []string, errs []error) {
-											v := val.(string)
-											matched, _ := regexp.MatchString(`^\d+\.\d+\.\d+\.\d+$`, v)
-											if !matched {
-												errs = append(errs, fmt.Errorf("value %q=%s must be in IP address format", key, v))
-											}
-											return
-										},
-									},
-									"dns_server1": {
-										Type:     schema.TypeString,
-										Optional: true,
-										Default:  "0.0.0.0",
-										ValidateFunc: func(val interface{}, key string) (warns []string, errs []error) {
-											v := val.(string)
-											matched, _ := regexp.MatchString(`^\d+\.\d+\.\d+\.\d+$`, v)
-											if !matched {
-												errs = append(errs, fmt.Errorf("value %q=%s must be in IP address format", key, v))
-											}
-											return
-										},
-									},
-									"dns_server2": {
-										Type:     schema.TypeString,
-										Optional: true,
-										Default:  "0.0.0.0",
-										ValidateFunc: func(val interface{}, key string) (warns []string, errs []error) {
-											v := val.(string)
-											matched, _ := regexp.MatchString(`^\d+\.\d+\.\d+\.\d+$`, v)
-											if !matched {
-												errs = append(errs, fmt.Errorf("value %q=%s must be in IP address format", key, v))
-											}
-											return
-										},
-									},
-									"initiator_name": {
-										Type:     schema.TypeString,
-										Optional: true,
-										Computed: true,
-									},
-									"iscsi_target": {
-										Type:     schema.TypeList,
-										Optional: true,
-										Computed: true,
-										MaxItems: 1,
-										Elem: &schema.Resource{
-											Schema: map[string]*schema.Schema{
-												"node_name": {
-													Type:     schema.TypeString,
-													Optional: true,
-													Computed: true,
-												},
-												"interfaces": {
-													Type:     schema.TypeList,
-													Optional: true,
-													Computed: true,
-													Elem:     &schema.Schema{Type: schema.TypeString},
-												},
-											},
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-			"cloud_args": {
-				Type:     schema.TypeMap,
-				Optional: true,
-				Elem:     &schema.Schema{Type: schema.TypeString},
-			},
-			"snapshot": {
-				Type:     schema.TypeList,
-				Optional: true,
-				Elem: &schema.Resource{
-					Schema: map[string]*schema.Schema{
-						"name": {
-							Type:     schema.TypeString,
-							Required: true,
-						},
-						"fsfreeze": {
-							Type:     schema.TypeBool,
-							Optional: true,
-							Default:  false,
-						},
-					},
-				},
-			},
-		},
+		Schema: schemaFlexbotServer(),
 		Create: resourceCreateServer,
 		Read:   resourceReadServer,
 		Update: resourceUpdateServer,
@@ -509,9 +33,7 @@ func resourceFlexbotServer() *schema.Resource {
 
 func resourceCreateServer(d *schema.ResourceData, meta interface{}) (err error) {
 	var nodeConfig *config.NodeConfig
-
-	p := meta.(*FlexbotConfig).FlexbotProvider
-	if nodeConfig, err = setFlexbotInput(d, p); err != nil {
+	if nodeConfig, err = setFlexbotInput(d, meta); err != nil {
 		return
 	}
 	compute := d.Get("compute").([]interface{})[0].(map[string]interface{})
@@ -592,7 +114,7 @@ func resourceCreateServer(d *schema.ResourceData, meta interface{}) (err error) 
 			for _, cmd := range compute["ssh_node_init_commands"].([]interface{}) {
 				var cmdOutput string
 				log.Printf("[INFO] Running SSH command on node %s: %s", nodeConfig.Compute.HostName, cmd.(string))
-				if cmdOutput, err = runSshCommand(nodeConfig, sshUser, sshPrivateKey, cmd.(string)); err != nil {
+				if cmdOutput, err = runSshCommand(nodeConfig.Network.Node[0].Ip, sshUser, sshPrivateKey, cmd.(string)); err != nil {
 					break
 				}
 				if len(cmdOutput) > 0 {
@@ -607,7 +129,7 @@ func resourceCreateServer(d *schema.ResourceData, meta interface{}) (err error) 
 			if snapshot.(map[string]interface{})["fsfreeze"].(bool) {
 				err = createSnapshot(nodeConfig, sshUser, sshPrivateKey, name)
 			} else {
-				err = ontap.CreateSnapshot(nodeConfig, name)
+				err = ontap.CreateSnapshot(nodeConfig, name, "")
 			}
 			if err != nil {
 				break
@@ -617,14 +139,13 @@ func resourceCreateServer(d *schema.ResourceData, meta interface{}) (err error) 
 	if err != nil {
 		err = fmt.Errorf("resourceCreateServer(): %s", err)
 	}
-	setFlexbotOutput(d, nodeConfig)
+	setFlexbotOutput(d, meta, nodeConfig)
 	return
 }
 
 func resourceReadServer(d *schema.ResourceData, meta interface{}) (err error) {
-	p := meta.(*FlexbotConfig).FlexbotProvider
 	var nodeConfig *config.NodeConfig
-	if nodeConfig, err = setFlexbotInput(d, p); err != nil {
+	if nodeConfig, err = setFlexbotInput(d, meta); err != nil {
 		return
 	}
 	log.Printf("[INFO] Refreshing Server %s", nodeConfig.Compute.HostName)
@@ -650,7 +171,7 @@ func resourceReadServer(d *schema.ResourceData, meta interface{}) (err error) {
 		if err = provider.Discover(nodeConfig); err != nil {
 			return
 		}
-		setFlexbotOutput(d, nodeConfig)
+		setFlexbotOutput(d, meta, nodeConfig)
 	} else {
 		d.SetId("")
 	}
@@ -676,25 +197,31 @@ func resourceUpdateServer(d *schema.ResourceData, meta interface{}) (err error) 
 		if err = resourceUpdateServerSnapshot(d, meta); err != nil {
 			return
 		}
+		d.SetPartial("snapshot")
+	}
+	if d.HasChange("restore") {
+		if err = resourceUpdateServerRestore(d, meta); err != nil {
+			return
+		}
+		d.SetPartial("restore")
 	}
 	d.Partial(false)
 	return
 }
 
 func resourceUpdateServerCompute(d *schema.ResourceData, meta interface{}) (err error) {
-	var powerState, nodeId string
+	var powerState, clusterId, nodeId string
 	var nodeConfig *config.NodeConfig
 	var rancherClient *rancher.Client
 	p := meta.(*FlexbotConfig).FlexbotProvider
-	clusterId := p.Get("rancher_api").([]interface{})[0].(map[string]interface{})["cluster_id"].(string)
 	compute := d.Get("compute").([]interface{})[0].(map[string]interface{})
 	network := d.Get("network").([]interface{})[0].(map[string]interface{})
 	sshUser := compute["ssh_user"].(string)
 	sshPrivateKey := compute["ssh_private_key"].(string)
-	if meta.(*FlexbotConfig).RancherConfig != nil {
+	if meta.(*FlexbotConfig).RancherApiEnabled && meta.(*FlexbotConfig).RancherConfig != nil {
 		rancherClient = &(meta.(*FlexbotConfig).RancherConfig.Client)
 	}
-	if nodeConfig, err = setFlexbotInput(d, p); err != nil {
+	if nodeConfig, err = setFlexbotInput(d, meta); err != nil {
 		return
 	}
 	log.Printf("[INFO] Updating Server Compute for node %s", nodeConfig.Compute.HostName)
@@ -709,6 +236,7 @@ func resourceUpdateServerCompute(d *schema.ResourceData, meta interface{}) (err 
 		return
 	}
 	if rancherClient != nil {
+		clusterId = p.Get("rancher_api").([]interface{})[0].(map[string]interface{})["cluster_id"].(string)
 		if nodeId, err = rancherClient.GetNode(clusterId, network["node"].([]interface{})[0].(map[string]interface{})["ip"].(string)); err != nil {
 			err = fmt.Errorf("resourceUpdateServer(compute): error: %s", err)
 			meta.(*FlexbotConfig).UpdateManagerSetError(err)
@@ -747,7 +275,7 @@ func resourceUpdateServerCompute(d *schema.ResourceData, meta interface{}) (err 
 		}
 		if (newCompute.([]interface{})[0].(map[string]interface{}))["wait_for_ssh_timeout"].(int) > 0 && len(sshUser) > 0 && len(sshPrivateKey) > 0 {
 			// Trying graceful node shutdown
-			if _, err = runSshCommand(nodeConfig, sshUser, sshPrivateKey, "sudo shutdown -h 0"); err != nil {
+			if _, err = runSshCommand(nodeConfig.Network.Node[0].Ip, sshUser, sshPrivateKey, "sudo shutdown -h 0"); err != nil {
 				err = fmt.Errorf("resourceUpdateServer(compute): runSshCommand(shutdown) error: %s", err)
 				meta.(*FlexbotConfig).UpdateManagerSetError(err)
 				return
@@ -784,8 +312,10 @@ func resourceUpdateServerCompute(d *schema.ResourceData, meta interface{}) (err 
 				return
 			}
 			if rancherClient != nil && len(nodeId) > 0 {
-				if err = rancherClient.NodeUncordon(nodeId); err == nil {
-					err = rancherClient.NodeWaitForState(nodeId, "active", 300)
+				if err = rancherClient.NodeWaitForState(nodeId, "active,drained,cordoned", 300); err == nil {
+					if err = rancherClient.NodeUncordon(nodeId); err == nil {
+						err = rancherClient.NodeWaitForState(nodeId, "active", 300)
+					}
 				}
 				if err != nil {
 					err = fmt.Errorf("resourceUpdateServer(compute): error: %s", err)
@@ -805,19 +335,18 @@ func resourceUpdateServerCompute(d *schema.ResourceData, meta interface{}) (err 
 }
 
 func resourceUpdateServerStorage(d *schema.ResourceData, meta interface{}) (err error) {
-	var powerState, nodeId string
+	var powerState, clusterId, nodeId string
 	var nodeConfig *config.NodeConfig
 	var rancherClient *rancher.Client
 	p := meta.(*FlexbotConfig).FlexbotProvider
-	clusterId := p.Get("rancher_api").([]interface{})[0].(map[string]interface{})["cluster_id"].(string)
 	compute := d.Get("compute").([]interface{})[0].(map[string]interface{})
 	network := d.Get("network").([]interface{})[0].(map[string]interface{})
 	sshUser := compute["ssh_user"].(string)
 	sshPrivateKey := compute["ssh_private_key"].(string)
-	if meta.(*FlexbotConfig).RancherConfig != nil {
+	if meta.(*FlexbotConfig).RancherApiEnabled && meta.(*FlexbotConfig).RancherConfig != nil {
 		rancherClient = &(meta.(*FlexbotConfig).RancherConfig.Client)
 	}
-	if nodeConfig, err = setFlexbotInput(d, p); err != nil {
+	if nodeConfig, err = setFlexbotInput(d, meta); err != nil {
 		return
 	}
 	oldStorage, newStorage := d.GetChange("storage")
@@ -838,6 +367,7 @@ func resourceUpdateServerStorage(d *schema.ResourceData, meta interface{}) (err 
 			return
 		}
 		if rancherClient != nil {
+			clusterId = p.Get("rancher_api").([]interface{})[0].(map[string]interface{})["cluster_id"].(string)
 			if nodeId, err = rancherClient.GetNode(clusterId, network["node"].([]interface{})[0].(map[string]interface{})["ip"].(string)); err != nil {
 				err = fmt.Errorf("resourceUpdateServer(storage): error: %s", err)
 				meta.(*FlexbotConfig).UpdateManagerSetError(err)
@@ -877,6 +407,15 @@ func resourceUpdateServerStorage(d *schema.ResourceData, meta interface{}) (err 
 				return
 			}
 		}
+		if (newStorage.([]interface{})[0].(map[string]interface{}))["auto_snapshot_on_update"].(bool) {
+			t := time.Now()
+			snapshotName := fmt.Sprintf("terraform:%s:%s-%s", oldBootLun["os_image"].(string), oldSeedLun["seed_template"].(string), t.Format(time.RFC3339))
+			if err = ontap.CreateSnapshot(nodeConfig, snapshotName, ""); err != nil {
+				err = fmt.Errorf("resourceUpdateServer(storage): error: %s", err)
+				meta.(*FlexbotConfig).UpdateManagerSetError(err)
+				return
+			}
+		}
 		if err = ontap.DeleteBootLUNs(nodeConfig); err != nil {
 			meta.(*FlexbotConfig).UpdateManagerSetError(err)
 			return
@@ -898,7 +437,7 @@ func resourceUpdateServerStorage(d *schema.ResourceData, meta interface{}) (err 
 				for _, cmd := range compute["ssh_node_init_commands"].([]interface{}) {
 					var cmdOutput string
 					log.Printf("[INFO] Running SSH command on node %s: %s", nodeConfig.Compute.HostName, cmd.(string))
-					if cmdOutput, err = runSshCommand(nodeConfig, sshUser, sshPrivateKey, cmd.(string)); err != nil {
+					if cmdOutput, err = runSshCommand(nodeConfig.Network.Node[0].Ip, sshUser, sshPrivateKey, cmd.(string)); err != nil {
 						meta.(*FlexbotConfig).UpdateManagerSetError(err)
 						return
 					}
@@ -946,7 +485,7 @@ func resourceUpdateServerStorage(d *schema.ResourceData, meta interface{}) (err 
 			for _, cmd := range compute["ssh_node_bootdisk_resize_commands"].([]interface{}) {
 				var cmdOutput string
 				log.Printf("[INFO] Running SSH command on node %s: %s", nodeConfig.Compute.HostName, cmd.(string))
-				if cmdOutput, err = runSshCommand(nodeConfig, sshUser, sshPrivateKey, cmd.(string)); err != nil {
+				if cmdOutput, err = runSshCommand(nodeConfig.Network.Node[0].Ip, sshUser, sshPrivateKey, cmd.(string)); err != nil {
 					return
 				}
 				if len(cmdOutput) > 0 {
@@ -958,7 +497,7 @@ func resourceUpdateServerStorage(d *schema.ResourceData, meta interface{}) (err 
 			for _, cmd := range compute["ssh_node_datadisk_resize_commands"].([]interface{}) {
 				var cmdOutput string
 				log.Printf("[INFO] Running SSH command on node %s: %s", nodeConfig.Compute.HostName, cmd.(string))
-				if cmdOutput, err = runSshCommand(nodeConfig, sshUser, sshPrivateKey, cmd.(string)); err != nil {
+				if cmdOutput, err = runSshCommand(nodeConfig.Network.Node[0].Ip, sshUser, sshPrivateKey, cmd.(string)); err != nil {
 					return
 				}
 				if len(cmdOutput) > 0 {
@@ -973,8 +512,7 @@ func resourceUpdateServerStorage(d *schema.ResourceData, meta interface{}) (err 
 func resourceUpdateServerSnapshot(d *schema.ResourceData, meta interface{}) (err error) {
 	var oldSnapState, newSnapState, snapStateInter, snapStorage []string
 	var nodeConfig *config.NodeConfig
-	p := meta.(*FlexbotConfig).FlexbotProvider
-	if nodeConfig, err = setFlexbotInput(d, p); err != nil {
+	if nodeConfig, err = setFlexbotInput(d, meta); err != nil {
 		return
 	}
 	compute := d.Get("compute").([]interface{})[0].(map[string]interface{})
@@ -1011,7 +549,7 @@ func resourceUpdateServerSnapshot(d *schema.ResourceData, meta interface{}) (err
 							err = fmt.Errorf("expected compute.ssh_user and compute.ssh_private_key parameters to ensure fsfreeze for snapshot %s", name)
 						}
 					} else {
-						err = ontap.CreateSnapshot(nodeConfig, name)
+						err = ontap.CreateSnapshot(nodeConfig, name, "")
 					}
 					if err != nil {
 						err = fmt.Errorf("resourceUpdateServer(): %s", err)
@@ -1024,18 +562,147 @@ func resourceUpdateServerSnapshot(d *schema.ResourceData, meta interface{}) (err
 	return
 }
 
-func resourceDeleteServer(d *schema.ResourceData, meta interface{}) (err error) {
-	var powerState, nodeId string
+func resourceUpdateServerRestore(d *schema.ResourceData, meta interface{}) (err error) {
+	var powerState, clusterId, nodeId string
 	var nodeConfig *config.NodeConfig
 	var rancherClient *rancher.Client
 	p := meta.(*FlexbotConfig).FlexbotProvider
-	clusterId := p.Get("rancher_api").([]interface{})[0].(map[string]interface{})["cluster_id"].(string)
 	compute := d.Get("compute").([]interface{})[0].(map[string]interface{})
 	network := d.Get("network").([]interface{})[0].(map[string]interface{})
-	if nodeConfig, err = setFlexbotInput(d, p); err != nil {
+	sshUser := compute["ssh_user"].(string)
+	sshPrivateKey := compute["ssh_private_key"].(string)
+	if meta.(*FlexbotConfig).RancherApiEnabled && meta.(*FlexbotConfig).RancherConfig != nil {
+		rancherClient = &(meta.(*FlexbotConfig).RancherConfig.Client)
+	}
+	if nodeConfig, err = setFlexbotInput(d, meta); err != nil {
 		return
 	}
-	if meta.(*FlexbotConfig).RancherConfig != nil {
+	oldRestore, newRestore := d.GetChange("restore")
+	if len(newRestore.([]interface{})) == 0 {
+		return
+	}
+	restore := newRestore.([]interface{})[0].(map[string]interface{})
+	if !restore["restore"].(bool) {
+		return
+	}
+	log.Printf("[INFO] Restoring Server Storage from snapshot")
+	err = meta.(*FlexbotConfig).UpdateManagerAcquire()
+	defer meta.(*FlexbotConfig).UpdateManagerRelease()
+	if err != nil {
+		err = fmt.Errorf("resourceUpdateServer(storage): last resource instance update returned error: %s", err)
+		return
+	}
+	if restore["snapshot_name"] == nil || len(restore["snapshot_name"].(string)) == 0 {
+		var lastSnapshot string
+		var snapshotList []string
+		tRFC3339exp, _ := regexp.Compile(`20[0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]-[0-9][0-9]:[0-9][0-9]$`)
+		lastSnapshotCreated := time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC)
+		if snapshotList, err =  ontap.GetSnapshots(nodeConfig); err != nil {
+			err = fmt.Errorf("resourceUpdateServer(restore): error: %s", err)
+			meta.(*FlexbotConfig).UpdateManagerSetError(err)
+			return
+		}
+		for _, snapshot := range snapshotList {
+    			timeFormatted := tRFC3339exp.FindString(snapshot)
+    			if len(timeFormatted) > 0 {
+    				if snapshotCreated, err := time.Parse(time.RFC3339, timeFormatted); err == nil {
+    					if snapshotCreated.Unix() > lastSnapshotCreated.Unix() {
+    						lastSnapshotCreated = snapshotCreated
+    						lastSnapshot = snapshot
+    					}
+    				}
+    			}
+			if len(lastSnapshot) > 0 {
+				restore["snapshot_name"] = lastSnapshot
+			}
+		}
+	}
+	if restore["snapshot_name"] == nil || len(restore["snapshot_name"].(string)) == 0 {
+		err = fmt.Errorf("resourceUpdateServer(restore): snapshot not found, expected snapshot_name")
+		meta.(*FlexbotConfig).UpdateManagerSetError(err)
+		return
+	}
+	if powerState, err = ucsm.GetServerPowerState(nodeConfig); err != nil {
+		meta.(*FlexbotConfig).UpdateManagerSetError(err)
+		return
+	}
+	if rancherClient != nil {
+		clusterId = p.Get("rancher_api").([]interface{})[0].(map[string]interface{})["cluster_id"].(string)
+		if nodeId, err = rancherClient.GetNode(clusterId, network["node"].([]interface{})[0].(map[string]interface{})["ip"].(string)); err != nil {
+			err = fmt.Errorf("resourceUpdateServer(restore): error: %s", err)
+			meta.(*FlexbotConfig).UpdateManagerSetError(err)
+			return
+		}
+	}
+	if powerState == "up" && compute["safe_removal"].(bool) {
+		err = fmt.Errorf("resourceUpdateServer(restore): server %s has power state up", nodeConfig.Compute.HostName)
+		meta.(*FlexbotConfig).UpdateManagerSetError(err)
+		return
+	}
+	if powerState == "up" {
+		if rancherClient != nil && len(nodeId) > 0 {
+			log.Printf("[INFO] Rancher API: cordoning/draining node id=%s", nodeId)
+			if err = rancherClient.NodeCordonDrain(nodeId, meta.(*FlexbotConfig).RancherConfig.NodeDrainInput); err != nil {
+				err = fmt.Errorf("resourceUpdateServer(restore): error: %s", err)
+				meta.(*FlexbotConfig).UpdateManagerSetError(err)
+				return
+			}
+		}
+		if err = ucsm.StopServer(nodeConfig); err != nil {
+			meta.(*FlexbotConfig).UpdateManagerSetError(err)
+			return
+		}
+	}
+	if err = ontap.RestoreSnapshot(nodeConfig, restore["snapshot_name"].(string)); err != nil {
+		err = fmt.Errorf("resourceUpdateServer(restore): error: %s", err)
+		meta.(*FlexbotConfig).UpdateManagerSetError(err)
+		return
+	}
+	if err = ontap.LunRestoreMapping(nodeConfig); err != nil {
+		err = fmt.Errorf("resourceUpdateServer(restore): error: %s", err)
+		meta.(*FlexbotConfig).UpdateManagerSetError(err)
+		return
+	}
+	if err = ucsm.StartServer(nodeConfig); err != nil {
+		meta.(*FlexbotConfig).UpdateManagerSetError(err)
+		return
+	}
+	if compute["wait_for_ssh_timeout"].(int) > 0  && len(sshUser) > 0 && len(sshPrivateKey) > 0 {
+		if err = waitForSsh(nodeConfig, compute["wait_for_ssh_timeout"].(int), sshUser, sshPrivateKey); err != nil {
+			meta.(*FlexbotConfig).UpdateManagerSetError(err)
+			return
+		}
+		if rancherClient != nil && len(nodeId) > 0 {
+			if err = rancherClient.NodeWaitForState(nodeId, "active,drained,cordoned", 300); err == nil {
+				if err = rancherClient.NodeUncordon(nodeId); err == nil {
+					err = rancherClient.NodeWaitForState(nodeId, "active", 300)
+				}
+			}
+			if err != nil {
+				err = fmt.Errorf("resourceUpdateServer(restore): error: %s", err)
+				meta.(*FlexbotConfig).UpdateManagerSetError(err)
+				return
+			}
+			if meta.(*FlexbotConfig).NodeGraceTimeout > 0 {
+				time.Sleep(time.Duration(meta.(*FlexbotConfig).NodeGraceTimeout) * time.Second)
+			}
+		}
+	}
+	d.Set("restore", oldRestore)
+	return
+}
+
+func resourceDeleteServer(d *schema.ResourceData, meta interface{}) (err error) {
+	var powerState, clusterId, nodeId string
+	var nodeConfig *config.NodeConfig
+	var rancherClient *rancher.Client
+	p := meta.(*FlexbotConfig).FlexbotProvider
+	compute := d.Get("compute").([]interface{})[0].(map[string]interface{})
+	network := d.Get("network").([]interface{})[0].(map[string]interface{})
+	if nodeConfig, err = setFlexbotInput(d, meta); err != nil {
+		return
+	}
+	if meta.(*FlexbotConfig).RancherApiEnabled && meta.(*FlexbotConfig).RancherConfig != nil {
 		rancherClient = &(meta.(*FlexbotConfig).RancherConfig.Client)
 	}
 	log.Printf("[INFO] Deleting Server %s", nodeConfig.Compute.HostName)
@@ -1047,6 +714,7 @@ func resourceDeleteServer(d *schema.ResourceData, meta interface{}) (err error) 
 		return
 	}
 	if rancherClient != nil {
+		clusterId = p.Get("rancher_api").([]interface{})[0].(map[string]interface{})["cluster_id"].(string)
 		if nodeId, err = rancherClient.GetNode(clusterId, network["node"].([]interface{})[0].(map[string]interface{})["ip"].(string)); err != nil {
 			err = fmt.Errorf("resourceDeleteServer(): rancherClient.GetNode() error: %s", err)
 			return
@@ -1109,11 +777,12 @@ func resourceImportServer(d *schema.ResourceData, meta interface{}) ([]*schema.R
 	return []*schema.ResourceData{d}, nil
 }
 
-func setFlexbotInput(d *schema.ResourceData, p *schema.ResourceData) (*config.NodeConfig, error) {
+func setFlexbotInput(d *schema.ResourceData, meta interface{}) (*config.NodeConfig, error) {
 	var nodeConfig config.NodeConfig
 	var err error
-	setInputMutex.Lock()
-	defer setInputMutex.Unlock()
+	meta.(*FlexbotConfig).Sync.Lock()
+	defer meta.(*FlexbotConfig).Sync.Unlock()
+	p := meta.(*FlexbotConfig).FlexbotProvider
 	p_ipam := p.Get("ipam").([]interface{})[0].(map[string]interface{})
 	nodeConfig.Ipam.Provider = p_ipam["provider"].(string)
 	nodeConfig.Ipam.DnsZone = p_ipam["dns_zone"].(string)
@@ -1210,17 +879,18 @@ func setFlexbotInput(d *schema.ResourceData, p *schema.ResourceData) (*config.No
 	return &nodeConfig, err
 }
 
-func setFlexbotOutput(d *schema.ResourceData, nodeConfig *config.NodeConfig) {
-	setOutputMutex.Lock()
-	defer setOutputMutex.Unlock()
+func setFlexbotOutput(d *schema.ResourceData, meta interface{}, nodeConfig *config.NodeConfig) {
+	meta.(*FlexbotConfig).Sync.Lock()
+	defer meta.(*FlexbotConfig).Sync.Unlock()
 	compute := d.Get("compute").([]interface{})[0].(map[string]interface{})
+	network := d.Get("network").([]interface{})[0].(map[string]interface{})
+	storage := d.Get("storage").([]interface{})[0].(map[string]interface{})
 	compute["sp_dn"] = nodeConfig.Compute.SpDn
 	if len(compute["blade_spec"].([]interface{})) > 0 {
 		bladeSpec := compute["blade_spec"].([]interface{})[0].(map[string]interface{})
 		bladeSpec["dn"] = nodeConfig.Compute.BladeSpec.Dn
 		compute["blade_spec"].([]interface{})[0] = bladeSpec
 	}
-	storage := d.Get("storage").([]interface{})[0].(map[string]interface{})
 	storage["svm_name"] = nodeConfig.Storage.SvmName
 	storage["image_repo_name"] = nodeConfig.Storage.ImageRepoName
 	storage["volume_name"] = nodeConfig.Storage.VolumeName
@@ -1251,7 +921,10 @@ func setFlexbotOutput(d *schema.ResourceData, nodeConfig *config.NodeConfig) {
 		}
 		storage["data_lun"].([]interface{})[0] = dataLun
 	}
-	network := d.Get("network").([]interface{})[0].(map[string]interface{})
+	storage["snapshots"] = []string{}
+	for _, snapshot := range nodeConfig.Storage.Snapshots {
+		storage["snapshots"] = append(storage["snapshots"].([]string), snapshot)
+	}
 	for i, _ := range network["node"].([]interface{}) {
 		node := network["node"].([]interface{})[i].(map[string]interface{})
 		node["macaddr"] = nodeConfig.Network.Node[i].Macaddr
@@ -1282,111 +955,8 @@ func setFlexbotOutput(d *schema.ResourceData, nodeConfig *config.NodeConfig) {
 		network["iscsi_initiator"].([]interface{})[i] = initiator
 	}
 	d.Set("compute", []interface{}{compute})
-	d.Set("storage", []interface{}{storage})
 	d.Set("network", []interface{}{network})
-}
-
-func checkSshListen(host string) (listen bool) {
-	timeout := time.Second
-	conn, err := net.DialTimeout("tcp", host+":22", timeout)
-	if err != nil {
-		listen = false
-	} else {
-		listen = true
-		conn.Close()
-	}
-	return
-}
-
-func checkSshCommand(host string, sshUser string, sshPrivateKey string) (err error) {
-	var signer ssh.Signer
-	var conn *ssh.Client
-	var sess *ssh.Session
-	if signer, err = ssh.ParsePrivateKey([]byte(sshPrivateKey)); err != nil {
-		return
-	}
-	config := &ssh.ClientConfig {
-		User: sshUser,
-		Auth: []ssh.AuthMethod {
-			ssh.PublicKeys(signer),
-		},
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-	}
-	if conn, err = ssh.Dial("tcp", host + ":22", config); err != nil {
-		return
-	}
-	defer conn.Close()
-	if sess, err = conn.NewSession(); err != nil {
-		return
-	}
-	err = sess.Run("uname -a")
-	sess.Close()
-	return
-}
-
-func runSshCommand(nodeConfig *config.NodeConfig, sshUser string, sshPrivateKey string, command string) (commandOutput string, err error) {
-	var signer ssh.Signer
-	var conn *ssh.Client
-	var sess *ssh.Session
-	var b_stdout, b_stderr bytes.Buffer
-	if signer, err = ssh.ParsePrivateKey([]byte(sshPrivateKey)); err != nil {
-		err = fmt.Errorf("runSshCommand(): failed to parse SSH private key: %s", err)
-		return
-	}
-	config := &ssh.ClientConfig {
-		User: sshUser,
-		Auth: []ssh.AuthMethod {
-			ssh.PublicKeys(signer),
-		},
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-	}
-	if conn, err = ssh.Dial("tcp", nodeConfig.Network.Node[0].Ip + ":22", config); err != nil {
-		err = fmt.Errorf("runSshCommand(): failed to connect to host %s: %s", nodeConfig.Network.Node[0].Ip, err)
-		return
-	}
-	defer conn.Close()
-	if sess, err = conn.NewSession(); err != nil {
-		err = fmt.Errorf("runSshCommand(): failed to create SSH session: %s", err)
-		return
-	}
-	defer sess.Close()
-	sess.Stdout = &b_stdout
-	sess.Stderr = &b_stderr
-	err = sess.Run(command)
-	if err != nil {
-		err = fmt.Errorf("runSshCommand(): failed to run command %s: %s: %s", command, err, b_stderr.String())
-		return
-	}
-	if b_stdout.Len() > 0 {
-		commandOutput = b_stdout.String()
-	}
-	return
-}
-
-func waitForSsh(nodeConfig *config.NodeConfig, waitForSshTimeout int, sshUser string, sshPrivateKey string) (err error) {
-	giveupTime := time.Now().Add(time.Second * time.Duration(waitForSshTimeout))
-	restartTime := time.Now().Add(time.Second * 600)
-	for time.Now().Before(giveupTime) {
-		if checkSshListen(nodeConfig.Network.Node[0].Ip) {
-			if len(sshUser) > 0 && len(sshPrivateKey) > 0 {
-				stabilazeTime := time.Now().Add(time.Second * 60)
-				for time.Now().Before(stabilazeTime) {
-					if err = checkSshCommand(nodeConfig.Network.Node[0].Ip, sshUser, sshPrivateKey); err == nil {
-						break
-					}
-					time.Sleep(1 * time.Second)
-				}
-			}
-			break
-		}
-		time.Sleep(1 * time.Second)
-		if time.Now().After(restartTime) {
-			ucsm.StopServer(nodeConfig)
-			ucsm.StartServer(nodeConfig)
-			restartTime = time.Now().Add(time.Second * 600)
-		}
-	}
-	return
+	d.Set("storage", []interface{}{storage})
 }
 
 func createSnapshot(nodeConfig *config.NodeConfig, sshUser string, sshPrivateKey string, snapshotName string) (err error) {
@@ -1453,7 +1023,7 @@ func createSnapshot(nodeConfig *config.NodeConfig, sshUser string, sshPrivateKey
 		time.Sleep(500 * time.Millisecond)
 	}
 	if b_stdout.String() == "frozen" {
-		if err = ontap.CreateSnapshot(nodeConfig, snapshotName); err != nil {
+		if err = ontap.CreateSnapshot(nodeConfig, snapshotName, ""); err != nil {
 			errs = append(errs, err.Error())
 		}
 	}
@@ -1466,24 +1036,33 @@ func createSnapshot(nodeConfig *config.NodeConfig, sshUser string, sshPrivateKey
 	return
 }
 
-func stringSliceIntersection(src1, src2 []string) (dst []string) {
-	hash := make(map[string]bool)
-	for _, e := range src1 {
-		hash[e] = true
-	}
-	for _, e := range src2 {
-		if hash[e] {
-			dst = append(dst, e)
+func waitForSsh(nodeConfig *config.NodeConfig, waitForSshTimeout int, sshUser string, sshPrivateKey string) (err error) {
+	giveupTime := time.Now().Add(time.Second * time.Duration(waitForSshTimeout))
+	restartTime := time.Now().Add(time.Second * 600)
+	for time.Now().Before(giveupTime) {
+		if checkSshListen(nodeConfig.Network.Node[0].Ip) {
+			if len(sshUser) > 0 && len(sshPrivateKey) > 0 {
+				stabilazeTime := time.Now().Add(time.Second * 60)
+				for time.Now().Before(stabilazeTime) {
+					if err = checkSshCommand(nodeConfig.Network.Node[0].Ip, sshUser, sshPrivateKey); err == nil {
+						break
+					}
+					time.Sleep(1 * time.Second)
+				}
+			}
+			if err == nil {
+				break
+			}
 		}
+		time.Sleep(1 * time.Second)
+		if time.Now().After(restartTime) {
+			ucsm.StopServer(nodeConfig)
+			ucsm.StartServer(nodeConfig)
+			restartTime = time.Now().Add(time.Second * 600)
+		}
+	}
+	if time.Now().After(giveupTime) && err != nil {
+		err = fmt.Errorf("waitForSsh(): exceeded timeout %d: %s", waitForSshTimeout, err)
 	}
 	return
-}
-
-func stringSliceElementExists(array []string, elem string) (bool) {
-	for _, e := range array {
-		if e == elem {
-			return true
-		}
-	}
-	return false
 }
