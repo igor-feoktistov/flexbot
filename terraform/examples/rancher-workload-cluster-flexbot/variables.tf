@@ -1,14 +1,40 @@
 variable "nodes" {
-  type = map(object({
-    hosts = list(string)
-    compute_blade_spec_dn = list(string)
-    compute_blade_spec_model = string
-    compute_blade_spec_total_memory = string
-    os_image = string
-    seed_template = string
-    boot_lun_size = number
-    data_lun_size = number
-  }))
+  type = object({
+    masters = map(object({
+      blade_spec_dn = string
+      blade_spec_model = string
+      blade_spec_total_memory = string
+      os_image = string
+      seed_template = string
+      boot_lun_size = number
+      data_lun_size = number
+      restore = object({
+        restore = bool
+        snapshot_name = string
+      })
+      snapshots = list(object({
+        name = string
+        fsfreeze = bool
+      }))
+    }))
+    workers = map(object({
+      blade_spec_dn = string
+      blade_spec_model = string
+      blade_spec_total_memory = string
+      os_image = string
+      seed_template = string
+      boot_lun_size = number
+      data_lun_size = number
+      restore = object({
+        restore = bool
+        snapshot_name = string
+      })
+      snapshots = list(object({
+        name = string
+        fsfreeze = bool
+      }))
+    }))
+  })
 }
 
 variable "flexbot_credentials" {
@@ -19,47 +45,41 @@ variable "flexbot_credentials" {
   }))
 }
 
-variable "infoblox_config" {
-  type = map
-}
-
-variable "node_compute_config" {
-  type = map
-}
-
-variable "node_network_config" {
-  type = map(list(object({
-    name = string
-    subnet = string
-    gateway = string
-    dns_server1 = string
-    dns_server2 = string
-    dns_domain = string
-  })))
-}
-
-variable "snapshots" {
-  type = list(object({
-    name = string
-    fsfreeze = bool
-  }))
-  default = []
-}
-
-variable "zapi_version" {
-  type = string
-  description = "cDOT ZAPI version"
-  default = ""
+variable "node_config" {
+  type = object({
+    infoblox = object({
+      wapi_version = string
+      dns_view = string
+      network_view = string
+      dns_zone = string
+    })
+    compute = object({
+      sp_org = string
+      sp_template = string
+      ssh_user = string
+      ssh_public_key_path = string
+      ssh_private_key_path = string
+    })
+    network = map(list(object({
+      name = string
+      subnet = string
+      gateway = string
+      dns_server1 = string
+      dns_server2 = string
+      dns_domain = string
+    })))
+    storage = object({
+      zapi_version = string
+    })
+  })
 }
 
 variable "rancher_config" {
-  type = map
-}
-
-variable "kubernetes_version" {
-  type = string
-  description = "RKE Kubernetes version"
-  default = "v1.18.9-rancher1-1"
+  type = object({
+    api_url = string
+    cluster_name = string
+    kubernetes_version = string
+  })
 }
 
 variable "pass_phrase" {

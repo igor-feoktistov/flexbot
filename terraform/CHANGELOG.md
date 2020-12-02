@@ -1,12 +1,15 @@
-## 1.4.3 (December 2, 2020)
+## 1.5.1 (December 2, 2020)
 
 FEATURES:
 
+* **New Argument:** `auto_snapshot_on_update` - (Optional) Enables automatic snapshots on image or seed template updates.
+* **New Argument:** `restore` - (Optional) Enables restore functionality for server LUN's.
 * **New Argument:** `rancher_api/enabled` - (Optional) Gives a flexibility to define `rancher_api` which is not functional yet (spin-up Rancher Management Server as an example).
 
 ENHANCEMENTS:
 
-* Migrated to new Hashicorp terraform-plugin-sdk
+* Migrated to new Hashicorp Plugin SDK.
+* Restore feature allows to restore server LUN's from snapshots.
 
 BUG FIXES:
 

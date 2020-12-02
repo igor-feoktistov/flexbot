@@ -4,17 +4,18 @@ locals {
 
 provider "flexbot" {
   pass_phrase = var.pass_phrase
+  synchronized_updates = true
   ipam {
     provider = "Infoblox"
     credentials {
       host = var.flexbot_credentials.infoblox.host
       user = var.flexbot_credentials.infoblox.user
       password = var.flexbot_credentials.infoblox.password
-      wapi_version = var.infoblox_config.wapi_version
-      dns_view = var.infoblox_config.dns_view
-      network_view = var.infoblox_config.network_view
+      wapi_version = var.node_config.infoblox.wapi_version
+      dns_view = var.node_config.infoblox.dns_view
+      network_view = var.node_config.infoblox.network_view
     }
-    dns_zone = var.infoblox_config.dns_zone
+    dns_zone = var.node_config.infoblox.dns_zone
   }
   compute {
     credentials {
@@ -28,47 +29,54 @@ provider "flexbot" {
       host = var.flexbot_credentials.cdot.host
       user = var.flexbot_credentials.cdot.user
       password = var.flexbot_credentials.cdot.password
-      zapi_version = var.zapi_version
+      zapi_version = var.node_config.storage.zapi_version
     }
   }
 }
 
 # Master nodes
 resource "flexbot_server" "master" {
-  count = length(var.nodes.masters.hosts)
+  for_each = var.nodes.masters
   # UCS compute
   compute {
-    hostname = var.nodes.masters.hosts[count.index]
-    sp_org = var.node_compute_config.sp_org
-    sp_template = var.node_compute_config.sp_template
+    hostname = each.key
+    sp_org = var.node_config.compute.sp_org
+    sp_template = var.node_config.compute.sp_template
     blade_spec {
-      dn = var.nodes.masters.compute_blade_spec_dn[count.index]
-      model = var.nodes.masters.compute_blade_spec_model
-      total_memory = var.nodes.masters.compute_blade_spec_total_memory
+      dn = each.value.blade_spec_dn
+      model = each.value.blade_spec_model
+      total_memory = each.value.blade_spec_total_memory
     }
     safe_removal = false
     wait_for_ssh_timeout = 1800
-    ssh_user = var.node_compute_config.ssh_user
-    ssh_private_key = file(var.node_compute_config.ssh_private_key_path)
+    ssh_user = var.node_config.compute.ssh_user
+    ssh_private_key = file(var.node_config.compute.ssh_private_key_path)
+    ssh_node_init_commands = [
+      "sudo cloud-init status --wait || true",
+      "curl https://releases.rancher.com/install-docker/${var.rke_config.docker_version}.sh | sh",
+    ]
+    ssh_node_bootdisk_resize_commands = ["sudo /usr/sbin/growbootdisk"]
+    ssh_node_datadisk_resize_commands = ["sudo /usr/sbin/growdatadisk"]
   }
   # cDOT storage
   storage {
+    auto_snapshot_on_update = true
     boot_lun {
-      size = var.nodes.masters.boot_lun_size
-      os_image = var.nodes.masters.os_image
+      os_image = each.value.os_image
+      size = each.value.boot_lun_size
     }
     seed_lun {
-      seed_template = var.nodes.masters.seed_template
+      seed_template = each.value.seed_template
     }
     data_lun {
-      size = var.nodes.masters.data_lun_size
+      size = each.value.data_lun_size
     }
   }
   # Compute network
   network {
     # General use interfaces (list)
     dynamic "node" {
-      for_each = [for node in var.node_network_config.node: {
+      for_each = [for node in var.node_config.network.node: {
         name = node.name
         subnet = node.subnet
         gateway = node.gateway
@@ -87,7 +95,7 @@ resource "flexbot_server" "master" {
     }
     # iSCSI initiator networks (list)
     dynamic "iscsi_initiator" {
-      for_each = [for iscsi_initiator in var.node_network_config.iscsi_initiator: {
+      for_each = [for iscsi_initiator in var.node_config.network.iscsi_initiator: {
         name = iscsi_initiator.name
         subnet = iscsi_initiator.subnet
       }]
@@ -99,7 +107,7 @@ resource "flexbot_server" "master" {
   }
   # Storage snapshots
   dynamic "snapshot" {
-    for_each = [for snapshot in var.snapshots: {
+    for_each = [for snapshot in each.value.snapshots: {
       name = snapshot.name
       fsfreeze = snapshot.fsfreeze
     }]
@@ -110,67 +118,59 @@ resource "flexbot_server" "master" {
   }
   # Arguments for cloud-init template
   cloud_args = {
-    cloud_user = var.node_compute_config.ssh_user
-    ssh_pub_key = file(var.node_compute_config.ssh_public_key_path)
+    cloud_user = var.node_config.compute.ssh_user
+    ssh_pub_key = file(var.node_config.compute.ssh_public_key_path)
   }
-  # Connection info for provisioners
-  connection {
-    type = "ssh"
-    host = self.network[0].node[0].ip
-    user = var.node_compute_config.ssh_user
-    private_key = file(var.node_compute_config.ssh_private_key_path)
-    timeout = "10m"
-  }
-  # Provisioner to wait until cloud-init finishes
-  provisioner "remote-exec" {
-    inline = [
-      "sudo cloud-init status --wait > /dev/null 2>&1 || true",
-    ]
-  }
-  # Provisioner to install docker
-  provisioner "remote-exec" {
-    inline = [
-      "curl https://releases.rancher.com/install-docker/19.03.sh | sh > /dev/null 2>&1",
-    ]
+  # Restore from snapshot
+  restore {
+    restore = each.value.restore.restore
+    snapshot_name = each.value.restore.snapshot_name
   }
 }
 
 # Worker nodes
 resource "flexbot_server" "worker" {
-  count = length(var.nodes.workers.hosts)
+  for_each = var.nodes.workers
   # UCS compute
   compute {
-    hostname = var.nodes.workers.hosts[count.index]
-    sp_org = var.node_compute_config.sp_org
-    sp_template = var.node_compute_config.sp_template
+    hostname = each.key
+    sp_org = var.node_config.compute.sp_org
+    sp_template = var.node_config.compute.sp_template
     blade_spec {
-      dn = var.nodes.workers.compute_blade_spec_dn[count.index]
-      model = var.nodes.workers.compute_blade_spec_model
-      total_memory = var.nodes.workers.compute_blade_spec_total_memory
+      dn = each.value.blade_spec_dn
+      model = each.value.blade_spec_model
+      total_memory = each.value.blade_spec_total_memory
     }
     safe_removal = false
     wait_for_ssh_timeout = 1800
-    ssh_user = var.node_compute_config.ssh_user
-    ssh_private_key = file(var.node_compute_config.ssh_private_key_path)
+    ssh_user = var.node_config.compute.ssh_user
+    ssh_private_key = file(var.node_config.compute.ssh_private_key_path)
+    ssh_node_init_commands = [
+      "sudo cloud-init status --wait || true",
+      "curl https://releases.rancher.com/install-docker/${var.rke_config.docker_version}.sh | sh",
+    ]
+    ssh_node_bootdisk_resize_commands = ["sudo /usr/sbin/growbootdisk"]
+    ssh_node_datadisk_resize_commands = ["sudo /usr/sbin/growdatadisk"]
   }
   # cDOT storage
   storage {
+    auto_snapshot_on_update = false
     boot_lun {
-      size = var.nodes.workers.boot_lun_size
-      os_image = var.nodes.workers.os_image
+      os_image = each.value.os_image
+      size = each.value.boot_lun_size
     }
     seed_lun {
-      seed_template = var.nodes.workers.seed_template
+      seed_template = each.value.seed_template
     }
     data_lun {
-      size = var.nodes.workers.data_lun_size
+      size = each.value.data_lun_size
     }
   }
   # Compute network
   network {
     # General use interfaces (list)
     dynamic "node" {
-      for_each = [for node in var.node_network_config.node: {
+      for_each = [for node in var.node_config.network.node: {
         name = node.name
         subnet = node.subnet
         gateway = node.gateway
@@ -189,7 +189,7 @@ resource "flexbot_server" "worker" {
     }
     # iSCSI initiator networks (list)
     dynamic "iscsi_initiator" {
-      for_each = [for iscsi_initiator in var.node_network_config.iscsi_initiator: {
+      for_each = [for iscsi_initiator in var.node_config.network.iscsi_initiator: {
         name = iscsi_initiator.name
         subnet = iscsi_initiator.subnet
       }]
@@ -201,7 +201,7 @@ resource "flexbot_server" "worker" {
   }
   # Storage snapshots
   dynamic "snapshot" {
-    for_each = [for snapshot in var.snapshots: {
+    for_each = [for snapshot in each.value.snapshots: {
       name = snapshot.name
       fsfreeze = snapshot.fsfreeze
     }]
@@ -212,32 +212,18 @@ resource "flexbot_server" "worker" {
   }
   # Arguments for cloud-init template
   cloud_args = {
-    cloud_user = var.node_compute_config.ssh_user
-    ssh_pub_key = file(var.node_compute_config.ssh_public_key_path)
+    cloud_user = var.node_config.compute.ssh_user
+    ssh_pub_key = file(var.node_config.compute.ssh_public_key_path)
   }
-  # Connection info for provisioners
-  connection {
-    type = "ssh"
-    host = self.network[0].node[0].ip
-    user = var.node_compute_config.ssh_user
-    private_key = file(var.node_compute_config.ssh_private_key_path)
-    timeout = "10m"
-  }
-  # Provisioner to wait until cloud-init finishes
-  provisioner "remote-exec" {
-    inline = [
-      "sudo cloud-init status --wait > /dev/null 2>&1 || true",
-    ]
-  }
-  # Provisioner to install docker
-  provisioner "remote-exec" {
-    inline = [
-      "curl https://releases.rancher.com/install-docker/19.03.sh | sh > /dev/null 2>&1",
-    ]
+  # Restore from snapshot
+  restore {
+    restore = each.value.restore.restore
+    snapshot_name = each.value.restore.snapshot_name
   }
 }
 
 resource rke_cluster "cluster" {
+  kubernetes_version = var.rke_config.rke_version
   dynamic "nodes" {
     for_each = [for instance in flexbot_server.master: {
       ip = instance.network[0].node[0].ip
@@ -247,9 +233,9 @@ resource rke_cluster "cluster" {
       address = nodes.value.ip
       hostname_override = nodes.value.fqdn
       internal_address = nodes.value.ip
-      user = var.node_compute_config.ssh_user
-      role = ["controlplane","etcd"]
-      ssh_key = file(var.node_compute_config.ssh_private_key_path)
+      user = var.node_config.compute.ssh_user
+      role = ["controlplane", "etcd"]
+      ssh_key = file(var.node_config.compute.ssh_private_key_path)
     }
   }
   dynamic "nodes" {
@@ -261,16 +247,20 @@ resource rke_cluster "cluster" {
       address = nodes.value.ip
       hostname_override = nodes.value.fqdn
       internal_address = nodes.value.ip
-      user = var.node_compute_config.ssh_user
+      user = var.node_config.compute.ssh_user
       role = ["worker"]
-      ssh_key = file(var.node_compute_config.ssh_private_key_path)
+      ssh_key = file(var.node_config.compute.ssh_private_key_path)
     }
+  }
+  network {
+    plugin = "canal"
   }
   services {
     etcd {
       backup_config {
-        interval_hours = 12
-        retention = 6
+        enabled = true
+        interval_hours = 2
+        retention = 360
       }
     }
     kube_api {
@@ -285,10 +275,25 @@ resource rke_cluster "cluster" {
     kubelet {
       cluster_domain = "cluster.local"
       cluster_dns_server = "172.20.0.10"
+      extra_args = {
+        max-pods = "100"
+      }
     }
   }
   ingress {
     provider = "nginx"
+  }
+  upgrade_strategy {
+    drain = true
+    drain_input {
+      force = true
+      delete_local_data = true
+      grace_period = 60
+      ignore_daemon_sets = true
+      timeout = 1800
+    }
+    max_unavailable_controlplane = "1"
+    max_unavailable_worker = "1"
   }
 }
 

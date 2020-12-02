@@ -4,17 +4,18 @@ locals {
 
 provider "flexbot" {
   pass_phrase = var.pass_phrase
+  synchronized_updates = true
   ipam {
     provider = "Infoblox"
     credentials {
       host = var.flexbot_credentials.infoblox.host
       user = var.flexbot_credentials.infoblox.user
       password = var.flexbot_credentials.infoblox.password
-      wapi_version = var.infoblox_config.wapi_version
-      dns_view = var.infoblox_config.dns_view
-      network_view = var.infoblox_config.network_view
+      wapi_version = var.node_config.infoblox.wapi_version
+      dns_view = var.node_config.infoblox.dns_view
+      network_view = var.node_config.infoblox.network_view
     }
-    dns_zone = var.infoblox_config.dns_zone
+    dns_zone = var.node_config.infoblox.dns_zone
   }
   compute {
     credentials {
@@ -28,12 +29,12 @@ provider "flexbot" {
       host = var.flexbot_credentials.cdot.host
       user = var.flexbot_credentials.cdot.user
       password = var.flexbot_credentials.cdot.password
-      zapi_version = var.zapi_version
+      zapi_version = var.node_config.storage.zapi_version
     }
   }
   rancher_api {
-    enabled = var.rancher_api_enabled
-    api_url = "https://${var.rancher_server_url}"
+    enabled = var.rancher_config.rancher_api_enabled
+    api_url = "https://${var.rancher_config.rancher_server_url}"
     token_key = var.token_key
     insecure = true
     cluster_id = "local"
@@ -47,48 +48,49 @@ provider "flexbot" {
   }
 }
 
-# Flexbot hosts
-resource "flexbot_server" "host" {
-  count = length(var.nodes.hosts)
+# RKE nodes
+resource "flexbot_server" "node" {
+  for_each = var.nodes
   # UCS compute
   compute {
-    hostname = var.nodes.hosts[count.index]
-    sp_org = var.node_compute_config.sp_org
-    sp_template = var.node_compute_config.sp_template
+    hostname = each.key
+    sp_org = var.node_config.compute.sp_org
+    sp_template = var.node_config.compute.sp_template
     blade_spec {
-      dn = var.nodes.compute_blade_spec_dn[count.index]
-      model = var.nodes.compute_blade_spec_model
-      total_memory = var.nodes.compute_blade_spec_total_memory
+      dn = each.value.blade_spec_dn
+      model = each.value.blade_spec_model
+      total_memory = each.value.blade_spec_total_memory
     }
     safe_removal = false
     wait_for_ssh_timeout = 1800
-    ssh_user = var.node_compute_config.ssh_user
-    ssh_private_key = file(var.node_compute_config.ssh_private_key_path)
+    ssh_user = var.node_config.compute.ssh_user
+    ssh_private_key = file(var.node_config.compute.ssh_private_key_path)
     ssh_node_init_commands = [
       "sudo cloud-init status --wait || true",
-      "curl https://releases.rancher.com/install-docker/${var.docker_version}.sh | sh",
+      "curl https://releases.rancher.com/install-docker/${var.rke_config.docker_version}.sh | sh",
     ]
     ssh_node_bootdisk_resize_commands = ["sudo /usr/sbin/growbootdisk"]
     ssh_node_datadisk_resize_commands = ["sudo /usr/sbin/growdatadisk"]
   }
   # cDOT storage
   storage {
+    auto_snapshot_on_update = true
     boot_lun {
-      size = var.nodes.boot_lun_size
-      os_image = var.nodes.os_image
+      os_image = each.value.os_image
+      size = each.value.boot_lun_size
     }
     seed_lun {
-      seed_template = var.nodes.seed_template
+      seed_template = each.value.seed_template
     }
     data_lun {
-      size = var.nodes.data_lun_size
+      size = each.value.data_lun_size
     }
   }
   # Compute network
   network {
     # General use interfaces (list)
     dynamic "node" {
-      for_each = [for node in var.node_network_config.node: {
+      for_each = [for node in var.node_config.network.node: {
         name = node.name
         subnet = node.subnet
         gateway = node.gateway
@@ -107,7 +109,7 @@ resource "flexbot_server" "host" {
     }
     # iSCSI initiator networks (list)
     dynamic "iscsi_initiator" {
-      for_each = [for iscsi_initiator in var.node_network_config.iscsi_initiator: {
+      for_each = [for iscsi_initiator in var.node_config.network.iscsi_initiator: {
         name = iscsi_initiator.name
         subnet = iscsi_initiator.subnet
       }]
@@ -119,7 +121,7 @@ resource "flexbot_server" "host" {
   }
   # Storage snapshots
   dynamic "snapshot" {
-    for_each = [for snapshot in var.snapshots: {
+    for_each = [for snapshot in each.value.snapshots: {
       name = snapshot.name
       fsfreeze = snapshot.fsfreeze
     }]
@@ -130,15 +132,20 @@ resource "flexbot_server" "host" {
   }
   # Arguments for cloud-init template
   cloud_args = {
-    cloud_user = var.node_compute_config.ssh_user
-    ssh_pub_key = file(var.node_compute_config.ssh_public_key_path)
+    cloud_user = var.node_config.compute.ssh_user
+    ssh_pub_key = file(var.node_config.compute.ssh_public_key_path)
+  }
+  # Restore from snapshot
+  restore {
+    restore = each.value.restore.restore
+    snapshot_name = each.value.restore.snapshot_name
   }
 }
 
 resource rke_cluster "cluster" {
-  kubernetes_version = var.rke_kubernetes_version
+  kubernetes_version = var.rke_config.rke_version
   dynamic "nodes" {
-    for_each = [for instance in flexbot_server.host: {
+    for_each = [for instance in flexbot_server.node: {
       ip = instance.network[0].node[0].ip
       fqdn = instance.network[0].node[0].fqdn
     }]
@@ -146,9 +153,9 @@ resource rke_cluster "cluster" {
       address = nodes.value.ip
       hostname_override = nodes.value.fqdn
       internal_address = nodes.value.ip
-      user = var.node_compute_config.ssh_user
+      user = var.node_config.compute.ssh_user
       role = ["controlplane", "worker", "etcd"]
-      ssh_key = file(var.node_compute_config.ssh_private_key_path)
+      ssh_key = file(var.node_config.compute.ssh_private_key_path)
     }
   }
   network {
@@ -194,7 +201,7 @@ resource rke_cluster "cluster" {
     max_unavailable_controlplane = "1"
     max_unavailable_worker = "1"
   }
-  addons_include = ["${var.tls_secret_manifest}"]
+  addons_include = ["${var.rke_config.tls_secret_manifest}"]
 }
 
 resource "local_file" "kubeconfig" {
@@ -220,9 +227,9 @@ provider "helm" {
 resource "helm_release" "rancher" {
   depends_on = [rke_cluster.cluster]
   name = "rancher"
-  repository = var.rancher_helm_repo
+  repository = var.rancher_config.rancher_helm_repo
   chart = "rancher"
-  version = var.rancher_version
+  version = var.rancher_config.rancher_version
   namespace = "cattle-system"
   create_namespace = "true"
   wait = "true"
@@ -234,7 +241,7 @@ resource "helm_release" "rancher" {
 
   set {
     name = "hostname"
-    value = var.rancher_server_url
+    value = var.rancher_config.rancher_server_url
   }
 
   set {

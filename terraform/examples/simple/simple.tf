@@ -153,6 +153,8 @@ resource "flexbot_server" "k8s-node1" {
       # Data LUN size, GB
       size = 50
     }
+    # Optional - automatically take a snapshot before any image update
+    auto_snapshot_on_update = true
   }
 
   # Required - Compute network
@@ -217,6 +219,17 @@ resource "flexbot_server" "k8s-node1" {
   cloud_args = {
     cloud_user = "cloud-user"
     ssh_pub_key = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAxxxxxxxxxxxxxxxxxxxxxxx"
+  }
+
+  # Restore from snapshot
+  # Optional - restore server LUN's from snapshot.
+  restore {
+    # Make sure to set "restore=false" once it's completed.
+    restore = true
+    # Optional - by default it finds latest snapshot created by the provider
+    #            if you set auto_snapshot_on_update to true for storage.
+    # List of all available snapshots you can find in state (look for snapshosts[]) for the resource.
+    snapshot_name = "k8s-node1.snap.1"
   }
 
   # Optional - Connection info for provisioners

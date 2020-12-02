@@ -1,14 +1,21 @@
 variable "nodes" {
-  type = object({
-    hosts = list(string)
-    compute_blade_spec_dn = list(string)
-    compute_blade_spec_model = string
-    compute_blade_spec_total_memory = string
+  type = map(object({
+    blade_spec_dn = string
+    blade_spec_model = string
+    blade_spec_total_memory = string
     os_image = string
     seed_template = string
     boot_lun_size = number
     data_lun_size = number
-  })
+    restore = object({
+      restore = bool
+      snapshot_name = string
+    })
+    snapshots = list(object({
+      name = string
+      fsfreeze = bool
+    }))
+  }))
 }
 
 variable "flexbot_credentials" {
@@ -19,69 +26,51 @@ variable "flexbot_credentials" {
   }))
 }
 
-variable "infoblox_config" {
-  type = map
+variable "node_config" {
+  type = object({
+    infoblox = object({
+      wapi_version = string
+      dns_view = string
+      network_view = string
+      dns_zone = string
+    })
+    compute = object({
+      sp_org = string
+      sp_template = string
+      ssh_user = string
+      ssh_public_key_path = string
+      ssh_private_key_path = string
+    })
+    network = map(list(object({
+      name = string
+      subnet = string
+      gateway = string
+      dns_server1 = string
+      dns_server2 = string
+      dns_domain = string
+    })))
+    storage = object({
+      zapi_version = string
+    })
+  })
 }
 
-variable "node_compute_config" {
-  type = map
+variable "rke_config" {
+  type = object({
+    rke_version = string
+    docker_version = string
+    tls_secret_manifest = string
+  })
 }
 
-variable "node_network_config" {
-  type = map(list(object({
-    name = string
-    subnet = string
-    gateway = string
-    dns_server1 = string
-    dns_server2 = string
-    dns_domain = string
-  })))
+variable "rancher_config" {
+  type = object({
+    rancher_helm_repo = string
+    rancher_version = string
+    rancher_server_url = string
+    rancher_api_enabled = bool
+  })
 }
-
-variable "snapshots" {
-  type = list(object({
-    name = string
-    fsfreeze = bool
-  }))
-  default = []
-}
-
-variable "zapi_version" {
-  type = string
-  description = "cDOT ZAPI version"
-  default = ""
-}
-
-variable "rke_kubernetes_version" {
-  type = string
-  description = "RKE Kubernetes version"
-  default = "v1.18.9-rancher1-1"
-}
-
-variable "rancher_helm_repo" {
-  type = string
-  description = "Rancher Management Server Helm repository URL"
-  default = ""
-}
-
-variable "rancher_version" {
-  type = string
-  description = "Rancher Management Server version"
-  default = ""
-}
-
-variable "docker_version" {
-  type = string
-  description = "Docker version"
-  default = ""
-}
-
-variable "tls_secret_manifest" {
-  type = string
-  description = "Rancher TLS Ingress Secret manifest"
-  default = ""
-}
-
 
 variable "pass_phrase" {
   type = string
@@ -91,16 +80,7 @@ variable "token_key" {
   type = string
 }
 
-variable "rancher_api_enabled" {
-  type = bool
-}
-
 variable "output_path" {
   type = string
   description = "Path to output directory"
-}
-
-variable "rancher_server_url" {
-  type = string
-  description = "Rancher server-url"
 }
