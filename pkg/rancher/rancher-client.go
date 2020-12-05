@@ -138,6 +138,18 @@ func IsVersionLessThan(ver1, ver2 string) (bool, error) {
 	return v1.LessThan(v2), nil
 }
 
+func IsNotFound(err error) bool {
+	return clientbase.IsNotFound(err)
+}
+
+func IsForbidden(err error) bool {
+	apiError, ok := err.(*clientbase.APIError)
+	if !ok {
+		return false
+	}
+	return apiError.StatusCode == http.StatusForbidden
+}
+
 func (c *Config) GetRancherVersion() (string, error) {
 	if len(c.RancherVersion) > 0 {
 		return c.RancherVersion, nil
@@ -268,7 +280,6 @@ func (c *Config) NormalizeURL() {
 func (client *Client) GetNode(clusterId string, nodeIpAddr string) (nodeId string, err error) {
         var clusters *managementClient.ClusterCollection
 	var nodes *managementClient.NodeCollection
-
 	filters := map[string]interface{} {
                 "id": clusterId,
         }
@@ -287,6 +298,37 @@ func (client *Client) GetNode(clusterId string, nodeIpAddr string) (nodeId strin
 		err = fmt.Errorf("rancher.GetNode() error: %s", err)
 	}
 	return
+}
+
+func (client *Client) GetNodeRole(nodeId string) (controlplane bool , etcd bool, worker bool, err error) {
+	var node *managementClient.Node
+        if node, err = client.Management.Node.ByID(nodeId); err != nil {
+    		return
+        }
+        return node.ControlPlane, node.Etcd, node.Worker, nil
+}
+
+func (client *Client) ClusterWaitForState(clusterId string, states string, timeout int) (err error) {
+	var cluster *managementClient.Cluster
+	var clusterLastState string
+	giveupTime := time.Now().Add(time.Second * time.Duration(timeout))
+    	for time.Now().Before(giveupTime) {
+		if cluster, err = client.Management.Cluster.ByID(clusterId); err != nil {
+			if IsNotFound(err) || IsForbidden(err) {
+    				err = fmt.Errorf("rancher.ClusterWaitForState(): cluster has been removed")
+			}
+			return
+            	}
+            	for _, state := range strings.Split(states, ",") {
+            		if cluster.State == state {
+            			return
+            		}
+            	}
+            	clusterLastState = cluster.State
+            	time.Sleep(5 * time.Second)
+        }
+    	err = fmt.Errorf("rancher.ClusterWaitForState(): wait for cluster state exceeded timeout=%d: expected states=%s, last state=%s", timeout, states, clusterLastState)
+        return
 }
 
 func (client *Client) NodeWaitForState(nodeId string, states string, timeout int) (err error) {
