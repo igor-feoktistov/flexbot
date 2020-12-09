@@ -1,0 +1,8 @@
+#!/bin/sh
+#
+# This script grows root FS on iSCSI disk
+#
+iscsiadm -m session --rescan
+mpath_dev=`df / | sed -n "s/^\/dev\/mapper\/\([0-9a-f]*\)\(p1\)*.*/\1/p"`
+multipathd -k"resize map $mpath_dev"
+resize2fs /dev/mapper/$mpath_dev

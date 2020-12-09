@@ -1,0 +1,8 @@
+#!/bin/sh
+#
+# This script grows data FS on iSCSI disk
+#
+iscsiadm -m session --rescan
+mpath_dev=`df /kubernetes | sed -n "s/^\/dev\/mapper\/\([0-9a-f]*\)\(p1\)*.*/\1/p"`
+multipathd -k"resize map $mpath_dev"
+xfs_growfs -d /kubernetes

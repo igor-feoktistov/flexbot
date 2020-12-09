@@ -35,9 +35,8 @@ fqdn: {{(index .Network.Node 0).Fqdn}}
 remotedisk_setup:
   - device: iscsi:{{index ((index .Network.IscsiInitiator 0).IscsiTarget.Interfaces) 0}}:6:3260:{{.Storage.DataLun.Id}}:{{(index .Network.IscsiInitiator 0).IscsiTarget.NodeName}}
     initiator_name: {{(index .Network.IscsiInitiator 0).InitiatorName}}
-    lvm_group: vg_k8s
-    lvm_volume: lv_k8s
     fs_type: xfs
+    fs_label: datafs
     mount_point: /kubernetes
 {{- end}}
 
@@ -58,17 +57,15 @@ random_seed:
   command: ["pollinate", "-r", "-s", "https://entropy.ubuntu.com"]
   command_required: true
 
-bootcmd:
-  - [ /usr/sbin/growrootfs ]
-
 runcmd:
-  - [ touch, /etc/cloud/cloud-init.disabled ]
-  - [ mkdir, /kubernetes/kubelet ]
-  - [ mkdir, /kubernetes/docker ]
-  - [ mkdir, /kubernetes/log ]
-  - [ mkdir, /kubernetes/etcd ]
-  - [ ln, -s, /kubernetes/kubelet, /var/lib/kubelet ]
-  - [ ln, -s, /kubernetes/docker, /var/lib/docker ]
-  - [ ln, -s, /kubernetes/log, /var/log/pods ]
-  - [ ln, -s, /kubernetes/etcd, /var/lib/etcd ]
+  - apt update && apt install nfs-common -y
+  - mkdir /kubernetes/kubelet
+  - mkdir /kubernetes/docker
+  - mkdir /kubernetes/log
+  - mkdir /kubernetes/etcd
+  - ln -s /kubernetes/kubelet /var/lib/kubelet
+  - ln -s /kubernetes/docker /var/lib/docker
+  - ln -s /kubernetes/log /var/log/pods
+  - ln -s /kubernetes/etcd /var/lib/etcd
+  - touch /etc/cloud/cloud-init.disabled
 {{end}}{{/* user-data template ends here */}}

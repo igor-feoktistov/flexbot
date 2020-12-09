@@ -49,7 +49,7 @@ resource "rancher2_cluster" "cluster" {
       provider = "nginx"
     }
     upgrade_strategy {
-      drain = true
+      drain = false
       drain_input {
         force = true
         delete_local_data = true

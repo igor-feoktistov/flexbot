@@ -32,20 +32,6 @@ provider "flexbot" {
       zapi_version = var.node_config.storage.zapi_version
     }
   }
-  rancher_api {
-    enabled = var.rancher_config.rancher_api_enabled
-    api_url = "https://${var.rancher_config.rancher_server_url}"
-    token_key = var.token_key
-    insecure = true
-    cluster_id = "local"
-    drain_input {
-      force = true
-      delete_local_data = true
-      grace_period = 60
-      ignore_daemon_sets = true
-      timeout = 1800
-    }
-  }
 }
 
 # RKE nodes
@@ -74,7 +60,7 @@ resource "flexbot_server" "node" {
   }
   # cDOT storage
   storage {
-    auto_snapshot_on_update = true
+    auto_snapshot_on_update = false
     boot_lun {
       os_image = each.value.os_image
       size = each.value.boot_lun_size
@@ -190,7 +176,7 @@ resource rke_cluster "cluster" {
     provider = "nginx"
   }
   upgrade_strategy {
-    drain = true
+    drain = false
     drain_input {
       force = true
       delete_local_data = true

@@ -1,6 +1,6 @@
 GOFMT_FILES?=$$(find . -name '*.go' |grep -v vendor)
 PKG_NAME=flexbot
-PKG_VERSION=1.5.1
+PKG_VERSION=1.5.3
 OSFLAG=$(shell go env GOHOSTOS)
 
 default: build

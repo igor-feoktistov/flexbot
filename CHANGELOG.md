@@ -1,8 +1,9 @@
-## 1.5.2 (December 4, 2020)
+## 1.5.3 (December 8, 2020)
 
 FEATURES:
 
-* Terraform provider v1.5.2
+* Updated examples for diskimage-builder and cloud-init templates
+* Terraform provider v1.5.3
 * See Terraform CHANGELOG for more details.
 
 ## 1.5.1 (December 2, 2020)

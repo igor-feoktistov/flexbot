@@ -1,6 +1,6 @@
 # vi: ts=4 expandtab
 #
-#    Author: Igor Feoktistov <ifeoktistov@yahoo.com>
+#    Author: Igor Feoktistov <igorf@netapp.com>
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -116,6 +116,7 @@ from string import whitespace
 from cloudinit.settings import PER_INSTANCE
 from cloudinit import type_utils
 from cloudinit import util
+from cloudinit import subp
 from cloudinit import templater
 
 frequency = PER_INSTANCE
@@ -125,10 +126,10 @@ WAIT_4_BLOCKDEV_MAPPING_SLEEP = 5
 WAIT_4_BLOCKDEV_DEVICE_ITER = 12
 WAIT_4_BLOCKDEV_DEVICE_SLEEP = 5
 
-LVM_CMD = util.which("lvm")
-ISCSIADM_CMD = util.which("iscsiadm")
-MULTIPATH_CMD = util.which("multipath")
-SYSTEMCTL_CMD = util.which("systemctl")
+LVM_CMD = subp.which("lvm")
+ISCSIADM_CMD = subp.which("iscsiadm")
+MULTIPATH_CMD = subp.which("multipath")
+SYSTEMCTL_CMD = subp.which("systemctl")
 FSTAB_PATH = "/etc/fstab"
 ISCSI_INITIATOR_PATH = "/etc/iscsi/initiatorname.iscsi"
 
@@ -223,6 +224,7 @@ def handle_iscsi(cfg, cloud, log, definition, dev_entry_iscsi):
         lvm_group = definition.get("lvm_group")
         lvm_volume = definition.get("lvm_volume")
         fs_type = definition.get("fs_type")
+        fs_label = definition.get("fs_label")
         fs_opts = definition.get("fs_opts")
         mount_point = definition.get("mount_point")
         mount_opts = definition.get("mount_opts")
@@ -255,11 +257,12 @@ def handle_iscsi(cfg, cloud, log, definition, dev_entry_iscsi):
             blockdev = _create_lv(log, blockdev, lvm_group, lvm_volume)
         if blockdev:
             if mount_point and fs_type:
-                _create_fs(log, blockdev, fs_type, fs_opts)
+                _create_fs(log, blockdev, fs_type, fs_label, fs_opts)
                 _add_fstab_entry(log,
                                  blockdev,
                                  mount_point,
                                  fs_type,
+                                 fs_label,
                                  mount_opts,
                                  fs_freq,
                                  fs_passno)
@@ -294,6 +297,7 @@ def handle_nfs(cfg, cloud, log, definition):
                          share_path,
                          mount_point,
                          fs_type,
+                         None,
                          mount_opts,
                          fs_freq,
                          fs_passno)
@@ -313,6 +317,7 @@ def handle_ebs(cfg, cloud, log, definition):
         lvm_group = definition.get("lvm_group")
         lvm_volume = definition.get("lvm_volume")
         fs_type = definition.get("fs_type")
+        fs_label = definition.get("fs_label")
         fs_opts = definition.get("fs_opts")
         mount_point = definition.get("mount_point")
         mount_opts = definition.get("mount_opts")
@@ -342,11 +347,12 @@ def handle_ebs(cfg, cloud, log, definition):
             blockdev = _create_lv(log, blockdev, lvm_group, lvm_volume)
         if blockdev:
             if mount_point and fs_type:
-                _create_fs(log, blockdev, fs_type, fs_opts)
+                _create_fs(log, blockdev, fs_type, fs_label, fs_opts)
                 _add_fstab_entry(log,
                                  blockdev,
                                  mount_point,
                                  fs_type,
+                                 fs_label,
                                  mount_opts,
                                  fs_freq,
                                  fs_passno)
@@ -449,13 +455,13 @@ def _list_lv_names():
 def _create_lv(log, device, vg_name, lv_name):
     # Create volume group
     pvcreate_cmd = [LVM_CMD, "pvcreate", device]
-    vgcreate_cmd = [LVM_CMD, "vgcreate", vg_name, device]
+    vgcreate_cmd = [LVM_CMD, "vgcreate", "-f", vg_name, device]
     lvcreate_cmd = [LVM_CMD,
                     "lvcreate", "-l", "100%FREE", "--name", lv_name, vg_name]
     try:
-        util.subp(pvcreate_cmd)
-        util.subp(vgcreate_cmd)
-        util.subp(lvcreate_cmd)
+        subp.subp(pvcreate_cmd)
+        subp.subp(vgcreate_cmd)
+        subp.subp(lvcreate_cmd)
         return "/dev/mapper/%s-%s" % (vg_name, lv_name)
     except Exception as e:
         util.logexc(log,
@@ -465,11 +471,11 @@ def _create_lv(log, device, vg_name, lv_name):
         return None
 
 
-def _create_fs(log, device, fs_type, fs_opts=None):
+def _create_fs(log, device, fs_type, fs_label, fs_opts=None):
     # Create filesystem
-    mkfs_cmd = util.which("mkfs.%s" % fs_type)
+    mkfs_cmd = subp.which("mkfs.%s" % fs_type)
     if not mkfs_cmd:
-        mkfs_cmd = util.which("mk%s" % fs_type)
+        mkfs_cmd = subp.which("mk%s" % fs_type)
     if not mkfs_cmd:
         util.logexc(log,
                     "_create_fs: "
@@ -478,9 +484,15 @@ def _create_fs(log, device, fs_type, fs_opts=None):
         return
     try:
         if fs_opts:
-            util.subp([mkfs_cmd, fs_opts, device])
+            if fs_label:
+                subp.subp([mkfs_cmd, '-L', fs_label, fs_opts, device])
+            else:
+                subp.subp([mkfs_cmd, fs_opts, device])
         else:
-            util.subp([mkfs_cmd, device])
+            if fs_label:
+                subp.subp([mkfs_cmd, '-L', fs_label, device])
+            else:
+                subp.subp([mkfs_cmd, device])
     except Exception as e:
         util.logexc(log,
                     "_create_fs: "
@@ -491,6 +503,7 @@ def _add_fstab_entry(log,
                      device,
                      mount_point,
                      fs_type,
+                     fs_label,
                      mount_opts,
                      fs_freq,
                      fs_passno):
@@ -513,6 +526,8 @@ def _add_fstab_entry(log,
                         % (FSTAB_PATH, mount_point))
             return
         fstab_lines.append(line)
+    if fs_label:
+        device = "LABEL=%s" % fs_label
     fstab_lines.extend(["%s\t%s\t%s\t%s\t%s\t%s" %
                        (device,
                         mount_point,
@@ -535,7 +550,7 @@ def _mount_fs(log, mount_point):
                     % (mount_point, e))
         return
     try:
-        util.subp(["mount", mount_point])
+        subp.subp(["mount", mount_point])
     except Exception as e:
         util.logexc(log,
                     "_mount_fs: "
@@ -555,7 +570,7 @@ def _service_wrapper(cloud, log, service, command):
                     "unsupported osfamily \"%s\"" % cloud.distro.osfamily)
         return
     try:
-        util.subp(svc_cmd, capture=False)
+        subp.subp(svc_cmd, capture=False)
     except Exception as e:
         util.logexc(log,
                     "_handle_service: "
@@ -565,9 +580,10 @@ def _service_wrapper(cloud, log, service, command):
 def _iscsi_lun_discover(log, iscsi_host, iscsi_port, iscsi_lun, iscsi_target):
     # Discover iSCSI target and map LUN ID to multipath device path
     blockdev = None
+    mpathdev = None
     for i in range(WAIT_4_BLOCKDEV_MAPPING_ITER):
         try:
-            util.subp([ISCSIADM_CMD,
+            subp.subp([ISCSIADM_CMD,
                        "--mode",
                        "discoverydb",
                        "--type",
@@ -602,7 +618,7 @@ def _iscsi_lun_discover(log, iscsi_host, iscsi_port, iscsi_lun, iscsi_target):
             iscsi_portal = node.split(",", 1)[0]
             if iscsi_portal:
                 try:
-                    util.subp([ISCSIADM_CMD,
+                    subp.subp([ISCSIADM_CMD,
                                "-m",
                                "node",
                                "-T",
@@ -656,7 +672,7 @@ def _iscsi_lun_discover(log, iscsi_host, iscsi_port, iscsi_lun, iscsi_target):
                         if m:
                             if current_iscsi_sid and not current_iscsi_lun:
                                 try:
-                                    util.subp([ISCSIADM_CMD,
+                                    subp.subp([ISCSIADM_CMD,
                                                "-m",
                                                "session",
                                                "-r",
@@ -702,10 +718,11 @@ def _iscsi_lun_discover(log, iscsi_host, iscsi_port, iscsi_lun, iscsi_target):
                                                 "\"/dev/%s\""
                                                 % attached_scsi_disk)
                                 else:
+                                    mpathdev = output2[0]
                                     blockdev = "/dev/mapper/%s" % output2[0]
             if current_iscsi_sid and not current_iscsi_lun:
                 try:
-                    util.subp([ISCSIADM_CMD,
+                    subp.subp([ISCSIADM_CMD,
                                "-m",
                                "session",
                                "-r",
@@ -719,11 +736,15 @@ def _iscsi_lun_discover(log, iscsi_host, iscsi_port, iscsi_lun, iscsi_target):
         else:
             time.sleep(WAIT_4_BLOCKDEV_MAPPING_SLEEP)
     if blockdev:
+        try:
+            subp.subp([MULTIPATH_CMD, "-f", mpathdev], capture=False)
+        except Exception as e:
+            pass
         for i in range(WAIT_4_BLOCKDEV_DEVICE_ITER):
             if os.path.exists(blockdev):
                 return blockdev
             try:
-                util.subp([MULTIPATH_CMD], capture=False)
+                subp.subp([MULTIPATH_CMD, mpathdev], capture=False)
             except Exception as e:
                 util.logexc(log,
                             "_iscsi_lun_discover: "

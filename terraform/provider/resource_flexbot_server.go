@@ -13,14 +13,11 @@ import (
 	"flexbot/pkg/ipam"
 	"flexbot/pkg/ontap"
 	"flexbot/pkg/ucsm"
-	"flexbot/pkg/rancher"
 	"github.com/denisbrodbeck/machineid"
         "github.com/hashicorp/terraform-plugin-sdk/helper/schema"
 )
 
 const (
-        WAIT4CLUSTER_STATE_TIMEOUT = 1800
-        WAIT4NODE_STATE_TIMEOUT = 600
         NODE_RESTART_TIMEOUT = 600
 )
 
@@ -221,17 +218,11 @@ func resourceUpdateServer(d *schema.ResourceData, meta interface{}) (err error) 
 }
 
 func resourceUpdateServerCompute(d *schema.ResourceData, meta interface{}) (err error) {
-	var powerState, clusterId, nodeId string
+	var powerState string
 	var nodeConfig *config.NodeConfig
-	var rancherClient *rancher.Client
-	p := meta.(*FlexbotConfig).FlexbotProvider
 	compute := d.Get("compute").([]interface{})[0].(map[string]interface{})
-	network := d.Get("network").([]interface{})[0].(map[string]interface{})
 	sshUser := compute["ssh_user"].(string)
 	sshPrivateKey := compute["ssh_private_key"].(string)
-	if meta.(*FlexbotConfig).RancherApiEnabled && meta.(*FlexbotConfig).RancherConfig != nil {
-		rancherClient = &(meta.(*FlexbotConfig).RancherConfig.Client)
-	}
 	if nodeConfig, err = setFlexbotInput(d, meta); err != nil {
 		return
 	}
@@ -268,32 +259,19 @@ func resourceUpdateServerCompute(d *schema.ResourceData, meta interface{}) (err 
 			meta.(*FlexbotConfig).UpdateManagerSetError(err)
 			return
 		}
-		var nodeControlPlane, nodeEtcd, nodeWorker bool
-		if rancherClient != nil {
-			clusterId = p.Get("rancher_api").([]interface{})[0].(map[string]interface{})["cluster_id"].(string)
-			if nodeId, err = rancherClient.GetNode(clusterId, network["node"].([]interface{})[0].(map[string]interface{})["ip"].(string)); err == nil {
-				if len(nodeId) > 0 {
-					nodeControlPlane, nodeEtcd, nodeWorker, err = rancherClient.GetNodeRole(nodeId)
-				}
-			}
-			if err != nil {
-				err = fmt.Errorf("resourceUpdateServer(compute): error: %s", err)
-				meta.(*FlexbotConfig).UpdateManagerSetError(err)
-				return
-			}
+		var rancherNode *RancherNode
+		if rancherNode, err = rancherApiInitialize(d, meta); err != nil {
+			err = fmt.Errorf("resourceUpdateServer(compute): error: %s", err)
+			meta.(*FlexbotConfig).UpdateManagerSetError(err)
+			return
 		}
 		if powerState == "up" {
-			if rancherClient != nil && len(nodeId) > 0 {
-				if err = rancherClient.ClusterWaitForState(clusterId, "active", WAIT4CLUSTER_STATE_TIMEOUT); err == nil {
-					if nodeWorker {
-						log.Printf("[INFO] Rancher API: cordoning/draining node id=%s", nodeId)
-						err = rancherClient.NodeCordonDrain(nodeId, meta.(*FlexbotConfig).RancherConfig.NodeDrainInput)
-					}
-					if err != nil {
-						err = fmt.Errorf("resourceUpdateServer(compute): error: %s", err)
-						meta.(*FlexbotConfig).UpdateManagerSetError(err)
-						return
-					}
+			// Cordon/drain worker nodes
+			if rancherNode.NodeWorker {
+				if err = rancherApiNodeCordon(rancherNode); err != nil {
+					err = fmt.Errorf("resourceUpdateServer(compute): error: %s", err)
+					meta.(*FlexbotConfig).UpdateManagerSetError(err)
+					return
 				}
 			}
 			if (newCompute.([]interface{})[0].(map[string]interface{}))["wait_for_ssh_timeout"].(int) > 0 && len(sshUser) > 0 && len(sshPrivateKey) > 0 {
@@ -335,28 +313,22 @@ func resourceUpdateServerCompute(d *schema.ResourceData, meta interface{}) (err 
 				meta.(*FlexbotConfig).UpdateManagerSetError(err)
 				return
 			}
-			if rancherClient != nil && len(nodeId) > 0 {
-				if nodeEtcd || nodeControlPlane {
-					rancherClient.ClusterWaitForState(clusterId, "updating", 60)
-				}
-				if err = rancherClient.ClusterWaitForState(clusterId, "active", WAIT4CLUSTER_STATE_TIMEOUT); err == nil {
-					if err = rancherClient.NodeWaitForState(nodeId, "active,drained,cordoned", WAIT4NODE_STATE_TIMEOUT); err == nil {
-						if nodeWorker {
-							if err = rancherClient.NodeUncordon(nodeId); err == nil {
-								err = rancherClient.NodeWaitForState(nodeId, "active", WAIT4NODE_STATE_TIMEOUT)
-							}
-						}
-					}
-				}
-				if err != nil {
-					err = fmt.Errorf("resourceUpdateServer(compute): error: %s", err)
-					meta.(*FlexbotConfig).UpdateManagerSetError(err)
-					return
-				}
-				if meta.(*FlexbotConfig).NodeGraceTimeout > 0 {
-					time.Sleep(time.Duration(meta.(*FlexbotConfig).NodeGraceTimeout) * time.Second)
-				}
+		}
+		// Uncordon worker nodes
+		if rancherNode.NodeWorker {
+			if err = rancherApiNodeUncordon(rancherNode); err != nil {
+				err = fmt.Errorf("resourceUpdateServer(compute): error: %s", err)
+				meta.(*FlexbotConfig).UpdateManagerSetError(err)
+				return
 			}
+		}
+		if err = rancherApiClusterWaitForState(rancherNode, "active", WAIT4CLUSTER_STATE_TIMEOUT); err != nil {
+			err = fmt.Errorf("resourceUpdateServer(compute): error: %s", err)
+			meta.(*FlexbotConfig).UpdateManagerSetError(err)
+			return
+		}
+		if meta.(*FlexbotConfig).NodeGraceTimeout > 0 {
+			time.Sleep(time.Duration(meta.(*FlexbotConfig).NodeGraceTimeout) * time.Second)
 		}
 		if err = resourceReadServer(d, meta); err != nil {
 			meta.(*FlexbotConfig).UpdateManagerSetError(err)
@@ -366,17 +338,11 @@ func resourceUpdateServerCompute(d *schema.ResourceData, meta interface{}) (err 
 }
 
 func resourceUpdateServerStorage(d *schema.ResourceData, meta interface{}) (err error) {
-	var powerState, clusterId, nodeId string
+	var powerState string
 	var nodeConfig *config.NodeConfig
-	var rancherClient *rancher.Client
-	p := meta.(*FlexbotConfig).FlexbotProvider
 	compute := d.Get("compute").([]interface{})[0].(map[string]interface{})
-	network := d.Get("network").([]interface{})[0].(map[string]interface{})
 	sshUser := compute["ssh_user"].(string)
 	sshPrivateKey := compute["ssh_private_key"].(string)
-	if meta.(*FlexbotConfig).RancherApiEnabled && meta.(*FlexbotConfig).RancherConfig != nil {
-		rancherClient = &(meta.(*FlexbotConfig).RancherConfig.Client)
-	}
 	if nodeConfig, err = setFlexbotInput(d, meta); err != nil {
 		return
 	}
@@ -397,20 +363,6 @@ func resourceUpdateServerStorage(d *schema.ResourceData, meta interface{}) (err 
 			meta.(*FlexbotConfig).UpdateManagerSetError(err)
 			return
 		}
-		var nodeWorker, nodeEtcd, nodeControlPlane bool
-		if rancherClient != nil {
-			clusterId = p.Get("rancher_api").([]interface{})[0].(map[string]interface{})["cluster_id"].(string)
-			if nodeId, err = rancherClient.GetNode(clusterId, network["node"].([]interface{})[0].(map[string]interface{})["ip"].(string)); err == nil {
-				if len(nodeId) > 0 {
-					nodeControlPlane, nodeEtcd, nodeWorker, err = rancherClient.GetNodeRole(nodeId)
-				}
-			}
-			if err != nil {
-				err = fmt.Errorf("resourceUpdateServer(storage): error: %s", err)
-				meta.(*FlexbotConfig).UpdateManagerSetError(err)
-				return
-			}
-		}
 		nodeConfig.Storage.BootLun.OsImage.Name = newBootLun["os_image"].(string)
 		nodeConfig.Storage.SeedLun.SeedTemplate.Location = newSeedLun["seed_template"].(string)
 		log.Printf("[INFO] Running boot storage preflight check")
@@ -430,15 +382,16 @@ func resourceUpdateServerStorage(d *schema.ResourceData, meta interface{}) (err 
 			meta.(*FlexbotConfig).UpdateManagerSetError(err)
 			return
 		}
+		var rancherNode *RancherNode
+		if rancherNode, err = rancherApiInitialize(d, meta); err != nil {
+			err = fmt.Errorf("resourceUpdateServer(storage): error: %s", err)
+			meta.(*FlexbotConfig).UpdateManagerSetError(err)
+			return
+		}
 		if powerState == "up" {
-			if rancherClient != nil && len(nodeId) > 0 {
-				if err = rancherClient.ClusterWaitForState(clusterId, "active", WAIT4CLUSTER_STATE_TIMEOUT); err == nil {
-					if nodeWorker {
-						log.Printf("[INFO] Rancher API: cordoning/draining node id=%s", nodeId)
-						err = rancherClient.NodeCordonDrain(nodeId, meta.(*FlexbotConfig).RancherConfig.NodeDrainInput)
-					}
-				}
-				if err != nil {
+			// Cordon/drain worker nodes
+			if rancherNode.NodeWorker {
+				if err = rancherApiNodeCordon(rancherNode); err != nil {
 					err = fmt.Errorf("resourceUpdateServer(storage): error: %s", err)
 					meta.(*FlexbotConfig).UpdateManagerSetError(err)
 					return
@@ -449,9 +402,11 @@ func resourceUpdateServerStorage(d *schema.ResourceData, meta interface{}) (err 
 				return
 			}
 		}
-		if rancherClient != nil && len(nodeId) > 0 && (nodeEtcd || nodeControlPlane) {
-			if err = rancherClient.DeleteNode(nodeId); err != nil {
-				err = fmt.Errorf("resourceUpdateServer(): rancherClient.DeleteNode() error: %s", err)
+		// Delete etcd/controlplane node
+		if rancherNode.NodeEtcd || rancherNode.NodeControlPlane {
+			if err = rancherApiNodeDelete(rancherNode); err != nil {
+				err = fmt.Errorf("resourceUpdateServer(storage): error: %s", err)
+				meta.(*FlexbotConfig).UpdateManagerSetError(err)
 				return
 			}
 		}
@@ -482,12 +437,15 @@ func resourceUpdateServerStorage(d *schema.ResourceData, meta interface{}) (err 
 		}
 		if compute["wait_for_ssh_timeout"].(int) > 0  && len(sshUser) > 0 && len(sshPrivateKey) > 0 {
 			if err = waitForSsh(nodeConfig, compute["wait_for_ssh_timeout"].(int), sshUser, sshPrivateKey); err == nil {
-				if rancherClient != nil {
-					if err = rancherClient.ClusterWaitForState(clusterId, "active", WAIT4CLUSTER_STATE_TIMEOUT); err != nil {
-						err = fmt.Errorf("resourceUpdateServer(storage): error: %s", err)
-						meta.(*FlexbotConfig).UpdateManagerSetError(err)
-						return
-					}
+				if err = rancherApiClusterWaitForState(rancherNode, "active", WAIT4CLUSTER_STATE_TIMEOUT); err != nil {
+					err = fmt.Errorf("resourceUpdateServer(storage): error: %s", err)
+					meta.(*FlexbotConfig).UpdateManagerSetError(err)
+					return
+				}
+				if err = rancherApiClusterWaitForState(rancherNode, "active", WAIT4CLUSTER_STATE_TIMEOUT); err != nil {
+					err = fmt.Errorf("resourceUpdateServer(storage): error: %s", err)
+					meta.(*FlexbotConfig).UpdateManagerSetError(err)
+					return
 				}
 				for _, cmd := range compute["ssh_node_init_commands"].([]interface{}) {
 					var cmdOutput string
@@ -502,25 +460,24 @@ func resourceUpdateServerStorage(d *schema.ResourceData, meta interface{}) (err 
 				}
 			}
 		}
-		if rancherClient != nil {
-			if nodeEtcd || nodeControlPlane {
-				rancherClient.ClusterWaitForState(clusterId, "updating", 60)
-			}
-			if err = rancherClient.ClusterWaitForState(clusterId, "active", WAIT4CLUSTER_STATE_TIMEOUT); err == nil {
-				if len(nodeId) > 0 && nodeWorker {
-					if err = rancherClient.NodeUncordon(nodeId); err == nil {
-						err = rancherClient.NodeWaitForState(nodeId, "active", WAIT4NODE_STATE_TIMEOUT)
-					}
-				}
-			}
-			if err != nil {
+		if rancherNode.NodeEtcd || rancherNode.NodeControlPlane {
+			rancherApiClusterWaitForState(rancherNode, "updating", 60)
+		}
+		// Uncordon worker nodes
+		if rancherNode.NodeWorker {
+			if err = rancherApiNodeUncordon(rancherNode); err != nil {
 				err = fmt.Errorf("resourceUpdateServer(storage): error: %s", err)
 				meta.(*FlexbotConfig).UpdateManagerSetError(err)
 				return
 			}
-			if meta.(*FlexbotConfig).NodeGraceTimeout > 0 {
-				time.Sleep(time.Duration(meta.(*FlexbotConfig).NodeGraceTimeout) * time.Second)
-			}
+		}
+		if err = rancherApiClusterWaitForState(rancherNode, "active", WAIT4CLUSTER_STATE_TIMEOUT); err != nil {
+			err = fmt.Errorf("resourceUpdateServer(storage): error: %s", err)
+			meta.(*FlexbotConfig).UpdateManagerSetError(err)
+			return
+		}
+		if meta.(*FlexbotConfig).NodeGraceTimeout > 0 {
+			time.Sleep(time.Duration(meta.(*FlexbotConfig).NodeGraceTimeout) * time.Second)
 		}
 	}
 	var resizeBootLun, resizeDataLun bool
@@ -625,17 +582,11 @@ func resourceUpdateServerSnapshot(d *schema.ResourceData, meta interface{}) (err
 }
 
 func resourceUpdateServerRestore(d *schema.ResourceData, meta interface{}) (err error) {
-	var powerState, clusterId, nodeId string
+	var powerState string
 	var nodeConfig *config.NodeConfig
-	var rancherClient *rancher.Client
-	p := meta.(*FlexbotConfig).FlexbotProvider
 	compute := d.Get("compute").([]interface{})[0].(map[string]interface{})
-	network := d.Get("network").([]interface{})[0].(map[string]interface{})
 	sshUser := compute["ssh_user"].(string)
 	sshPrivateKey := compute["ssh_private_key"].(string)
-	if meta.(*FlexbotConfig).RancherApiEnabled && meta.(*FlexbotConfig).RancherConfig != nil {
-		rancherClient = &(meta.(*FlexbotConfig).RancherConfig.Client)
-	}
 	if nodeConfig, err = setFlexbotInput(d, meta); err != nil {
 		return
 	}
@@ -648,12 +599,6 @@ func resourceUpdateServerRestore(d *schema.ResourceData, meta interface{}) (err 
 		return
 	}
 	log.Printf("[INFO] Restoring Server Storage from snapshot")
-	err = meta.(*FlexbotConfig).UpdateManagerAcquire()
-	defer meta.(*FlexbotConfig).UpdateManagerRelease()
-	if err != nil {
-		err = fmt.Errorf("resourceUpdateServer(storage): last resource instance update returned error: %s", err)
-		return
-	}
 	if restore["snapshot_name"] == nil || len(restore["snapshot_name"].(string)) == 0 {
 		var lastSnapshot string
 		var snapshotList []string
@@ -661,7 +606,6 @@ func resourceUpdateServerRestore(d *schema.ResourceData, meta interface{}) (err 
 		lastSnapshotCreated := time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC)
 		if snapshotList, err =  ontap.GetSnapshots(nodeConfig); err != nil {
 			err = fmt.Errorf("resourceUpdateServer(restore): error: %s", err)
-			meta.(*FlexbotConfig).UpdateManagerSetError(err)
 			return
 		}
 		for _, snapshot := range snapshotList {
@@ -681,91 +625,34 @@ func resourceUpdateServerRestore(d *schema.ResourceData, meta interface{}) (err 
 	}
 	if restore["snapshot_name"] == nil || len(restore["snapshot_name"].(string)) == 0 {
 		err = fmt.Errorf("resourceUpdateServer(restore): snapshot not found, expected snapshot_name")
-		meta.(*FlexbotConfig).UpdateManagerSetError(err)
 		return
 	}
 	if powerState, err = ucsm.GetServerPowerState(nodeConfig); err != nil {
-		meta.(*FlexbotConfig).UpdateManagerSetError(err)
 		return
-	}
-	var nodeControlPlane, nodeEtcd, nodeWorker bool
-	if rancherClient != nil {
-		clusterId = p.Get("rancher_api").([]interface{})[0].(map[string]interface{})["cluster_id"].(string)
-		if nodeId, err = rancherClient.GetNode(clusterId, network["node"].([]interface{})[0].(map[string]interface{})["ip"].(string)); err == nil {
-			if len(nodeId) > 0 {
-				nodeControlPlane, nodeEtcd, nodeWorker, err = rancherClient.GetNodeRole(nodeId)
-			}
-		}
-		if err != nil {
-			err = fmt.Errorf("resourceUpdateServer(restore): error: %s", err)
-			meta.(*FlexbotConfig).UpdateManagerSetError(err)
-			return
-		}
 	}
 	if powerState == "up" && compute["safe_removal"].(bool) {
 		err = fmt.Errorf("resourceUpdateServer(restore): server %s has power state up", nodeConfig.Compute.HostName)
-		meta.(*FlexbotConfig).UpdateManagerSetError(err)
 		return
 	}
 	if powerState == "up" {
-		if rancherClient != nil {
-			if err = rancherClient.ClusterWaitForState(clusterId, "active", WAIT4CLUSTER_STATE_TIMEOUT); err == nil {
-				if len(nodeId) > 0 && nodeWorker {
-					log.Printf("[INFO] Rancher API: cordoning/draining node id=%s", nodeId)
-					err = rancherClient.NodeCordonDrain(nodeId, meta.(*FlexbotConfig).RancherConfig.NodeDrainInput)
-				}
-			}
-		}
-		if err != nil {
-			err = fmt.Errorf("resourceUpdateServer(restore): error: %s", err)
-			meta.(*FlexbotConfig).UpdateManagerSetError(err)
-			return
-		}
 		if err = ucsm.StopServer(nodeConfig); err != nil {
-			meta.(*FlexbotConfig).UpdateManagerSetError(err)
 			return
 		}
 	}
 	if err = ontap.RestoreSnapshot(nodeConfig, restore["snapshot_name"].(string)); err != nil {
 		err = fmt.Errorf("resourceUpdateServer(restore): error: %s", err)
-		meta.(*FlexbotConfig).UpdateManagerSetError(err)
 		return
 	}
 	if err = ontap.LunRestoreMapping(nodeConfig); err != nil {
 		err = fmt.Errorf("resourceUpdateServer(restore): error: %s", err)
-		meta.(*FlexbotConfig).UpdateManagerSetError(err)
 		return
 	}
 	if err = ucsm.StartServer(nodeConfig); err != nil {
-		meta.(*FlexbotConfig).UpdateManagerSetError(err)
 		return
 	}
 	if compute["wait_for_ssh_timeout"].(int) > 0  && len(sshUser) > 0 && len(sshPrivateKey) > 0 {
 		if err = waitForSsh(nodeConfig, compute["wait_for_ssh_timeout"].(int), sshUser, sshPrivateKey); err != nil {
-			meta.(*FlexbotConfig).UpdateManagerSetError(err)
 			return
-		}
-		if rancherClient != nil {
-			if nodeEtcd || nodeControlPlane {
-				rancherClient.ClusterWaitForState(clusterId, "updating", 60)
-			}
-			if err = rancherClient.ClusterWaitForState(clusterId, "active", WAIT4CLUSTER_STATE_TIMEOUT); err == nil {
-				if len(nodeId) > 0 && nodeWorker {
-					if err = rancherClient.NodeWaitForState(nodeId, "active,drained,cordoned", WAIT4NODE_STATE_TIMEOUT); err == nil {
-						if err = rancherClient.NodeUncordon(nodeId); err == nil {
-							err = rancherClient.NodeWaitForState(nodeId, "active", WAIT4NODE_STATE_TIMEOUT)
-						}
-					}
-				}
-			}
-			if err != nil {
-				err = fmt.Errorf("resourceUpdateServer(restore): error: %s", err)
-				meta.(*FlexbotConfig).UpdateManagerSetError(err)
-				return
-			}
-			if meta.(*FlexbotConfig).NodeGraceTimeout > 0 {
-				time.Sleep(time.Duration(meta.(*FlexbotConfig).NodeGraceTimeout) * time.Second)
-			}
 		}
 	}
 	d.Set("restore", oldRestore)
@@ -773,17 +660,11 @@ func resourceUpdateServerRestore(d *schema.ResourceData, meta interface{}) (err 
 }
 
 func resourceDeleteServer(d *schema.ResourceData, meta interface{}) (err error) {
-	var powerState, clusterId, nodeId string
+	var powerState string
 	var nodeConfig *config.NodeConfig
-	var rancherClient *rancher.Client
-	p := meta.(*FlexbotConfig).FlexbotProvider
 	compute := d.Get("compute").([]interface{})[0].(map[string]interface{})
-	network := d.Get("network").([]interface{})[0].(map[string]interface{})
 	if nodeConfig, err = setFlexbotInput(d, meta); err != nil {
 		return
-	}
-	if meta.(*FlexbotConfig).RancherApiEnabled && meta.(*FlexbotConfig).RancherConfig != nil {
-		rancherClient = &(meta.(*FlexbotConfig).RancherConfig.Client)
 	}
 	log.Printf("[INFO] Deleting Server %s", nodeConfig.Compute.HostName)
 	if powerState, err = ucsm.GetServerPowerState(nodeConfig); err != nil {
@@ -793,39 +674,27 @@ func resourceDeleteServer(d *schema.ResourceData, meta interface{}) (err error) 
 		err = fmt.Errorf("resourceDeleteServer(): server %s has power state up", nodeConfig.Compute.HostName)
 		return
 	}
-	var nodeWorker bool
-	if rancherClient != nil {
-		clusterId = p.Get("rancher_api").([]interface{})[0].(map[string]interface{})["cluster_id"].(string)
-		if nodeId, err = rancherClient.GetNode(clusterId, network["node"].([]interface{})[0].(map[string]interface{})["ip"].(string)); err == nil {
-			if len(nodeId) > 0 {
-				_, _, nodeWorker, err = rancherClient.GetNodeRole(nodeId)
-			}
-		}
-		if err != nil {
-			err = fmt.Errorf("resourceDeleteServer(): rancherClient.GetNode() error: %s", err)
-			return
-		}
+	var rancherNode *RancherNode
+	if rancherNode, err = rancherApiInitialize(d, meta); err != nil {
+		err = fmt.Errorf("resourceDeleteServer(): error: %s", err)
+		return
 	}
 	if powerState == "up" {
-		if rancherClient != nil && len(nodeId) > 0 {
-			log.Printf("[INFO] Rancher API: cordoning/draining node id=%s", nodeId)
-			if nodeWorker {
-				if err = rancherClient.NodeCordonDrain(nodeId, meta.(*FlexbotConfig).RancherConfig.NodeDrainInput); err != nil {
-					err = fmt.Errorf("resourceDeleteServer(): rancherClient.NodeCordonDrain() error: %s", err)
-					return
-				}
+		// Cordon/drain worker nodes
+		if rancherNode.NodeWorker {
+			if err = rancherApiNodeCordon(rancherNode); err != nil {
+				err = fmt.Errorf("resourceDeleteServer(): error: %s", err)
+				return
 			}
 		}
 		if err = ucsm.StopServer(nodeConfig); err != nil {
 			return
 		}
 	}
-	if rancherClient != nil && len(nodeId) > 0 {
-		log.Printf("[INFO] Rancher API: deleting node id=%s", nodeId)
-		if err = rancherClient.DeleteNode(nodeId); err != nil {
-			err = fmt.Errorf("resourceDeleteServer(): rancherClient.DeleteNode() error: %s", err)
-			return
-		}
+	// Delete node
+	if err = rancherApiNodeDelete(rancherNode); err != nil {
+		err = fmt.Errorf("resourceDeleteServer(): error: %s", err)
+		return
 	}
 	var stepErr error
 	stepErrMsg := []string{}
