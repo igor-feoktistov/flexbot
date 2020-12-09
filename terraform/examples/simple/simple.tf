@@ -103,8 +103,9 @@ resource "flexbot_server" "k8s-node1" {
       #model = "UCSB-B200-M[45]"
       # Number of CPUs, supports range
       #num_of_cpus = "2"
-      # Number of cores, support range
+      # Number of cores, supports range
       #num_of_cores = "36"
+      #num_of_cores = "24-36"
       # Total memory in MB, supports range
       total_memory = "65536-262144"
     }
@@ -228,7 +229,7 @@ resource "flexbot_server" "k8s-node1" {
     restore = true
     # Optional - by default it finds latest snapshot created by the provider
     #            if you set auto_snapshot_on_update to true for storage.
-    # List of all available snapshots you can find in state (look for snapshosts[]) for the resource.
+    # List of all available snapshots you can find in state file (look for snapshosts[]) for the resource.
     snapshot_name = "k8s-node1.snap.1"
   }
 
