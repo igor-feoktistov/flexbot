@@ -68,15 +68,10 @@ variable "rancher_config" {
     rancher_helm_repo = string
     rancher_version = string
     rancher_server_url = string
-    rancher_api_enabled = bool
   })
 }
 
 variable "pass_phrase" {
-  type = string
-}
-
-variable "token_key" {
   type = string
 }
 

@@ -116,7 +116,6 @@ rancher_config = {
   rancher_helm_repo = "https://releases.rancher.com/server-charts/latest"
   rancher_version = "2.5.2"
   rancher_server_url = "rancher.example.com"
-  rancher_api_enabled = false
 }
 
 output_path = "output"
