@@ -20,10 +20,14 @@ vet:
 fmt:
 	gofmt -w $(GOFMT_FILES)
 
-dist:
-	GOOS=darwin GOARCH=amd64 go build -o bin/$(PKG_NAME)-v$(PKG_VERSION).darwin -v ./cmd/flexbot/...
-	hack/upx-${OSFLAG} bin/$(PKG_NAME)-v$(PKG_VERSION).darwin
-	GOOS=linux GOARCH=amd64 go build -o bin/$(PKG_NAME)-v$(PKG_VERSION).linux -v ./cmd/flexbot/...
-	hack/upx-${OSFLAG} bin/$(PKG_NAME)-v$(PKG_VERSION).linux
+release:
+	# Build for darwin-amd64
+	@mkdir -p releases/$(PKG_VERSION)/darwin
+	GOOS=darwin GOARCH=amd64 go build -o releases/$(PKG_VERSION)/darwin/$(PKG_NAME).darwin -v ./cmd/flexbot/...
+	hack/upx-${OSFLAG} releases/$(PKG_VERSION)/darwin/$(PKG_NAME).darwin
+	# Build for linux-amd64
+	@mkdir -p releases/$(PKG_VERSION)/linux
+	GOOS=linux GOARCH=amd64 go build -o releases/$(PKG_VERSION)/linux/$(PKG_NAME).linux -v ./cmd/flexbot/...
+	hack/upx-${OSFLAG} releases/$(PKG_VERSION)/linux/$(PKG_NAME).linux
 
 .PHONY: build vet fmt dist
