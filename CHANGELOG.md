@@ -1,3 +1,10 @@
+## 1.5.4 (December 15, 2020)
+
+FEATURES:
+
+* Terraform provider v1.5.4
+* See Terraform CHANGELOG for more details.
+
 ## 1.5.3 (December 8, 2020)
 
 FEATURES:

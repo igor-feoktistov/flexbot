@@ -218,7 +218,7 @@ func resourceUpdateServer(d *schema.ResourceData, meta interface{}) (err error) 
 }
 
 func resourceUpdateServerCompute(d *schema.ResourceData, meta interface{}) (err error) {
-	var powerState string
+	var powerState, newPowerState string
 	var nodeConfig *config.NodeConfig
 	compute := d.Get("compute").([]interface{})[0].(map[string]interface{})
 	sshUser := compute["ssh_user"].(string)
@@ -230,6 +230,7 @@ func resourceUpdateServerCompute(d *schema.ResourceData, meta interface{}) (err 
 	oldBladeSpec := (oldCompute.([]interface{})[0].(map[string]interface{}))["blade_spec"].([]interface{})[0].(map[string]interface{})
 	newBladeSpec := (newCompute.([]interface{})[0].(map[string]interface{}))["blade_spec"].([]interface{})[0].(map[string]interface{})
 	bladeSpecChange := false
+	powerStateChange := false
 	for _, specItem := range []string{"dn", "model", "num_of_cpus", "num_of_cores", "total_memory"} {
 		if oldBladeSpec[specItem].(string) != newBladeSpec[specItem].(string) {
 			bladeSpecChange = true
@@ -242,23 +243,21 @@ func resourceUpdateServerCompute(d *schema.ResourceData, meta interface{}) (err 
 		nodeConfig.Compute.BladeSpec.Dn = newBladeSpec["dn"].(string)
 		bladeSpecChange = true
 	}
-	if bladeSpecChange {
-		log.Printf("[INFO] Updating Server Compute for node %s", nodeConfig.Compute.HostName)
+	if powerState, err = ucsm.GetServerPowerState(nodeConfig); err != nil {
+		return
+	}
+	newPowerState = (newCompute.([]interface{})[0].(map[string]interface{}))["powerstate"].(string)
+	if  newPowerState != powerState {
+		powerStateChange = true
+	}
+	if bladeSpecChange || powerStateChange {
 		err = meta.(*FlexbotConfig).UpdateManagerAcquire()
 		defer meta.(*FlexbotConfig).UpdateManagerRelease()
 		if err != nil {
 			err = fmt.Errorf("resourceUpdateServer(compute): last resource instance update returned error: %s", err)
 			return
 		}
-		if powerState, err = ucsm.GetServerPowerState(nodeConfig); err != nil {
-			meta.(*FlexbotConfig).UpdateManagerSetError(err)
-			return
-		}
-		if powerState == "up" && (newCompute.([]interface{})[0].(map[string]interface{}))["safe_removal"].(bool) {
-			err = fmt.Errorf("resourceUpdateServer(compute): server %s has power state up", nodeConfig.Compute.HostName)
-			meta.(*FlexbotConfig).UpdateManagerSetError(err)
-			return
-		}
+		log.Printf("[INFO] Updating Server Compute for node %s", nodeConfig.Compute.HostName)
 		var rancherNode *RancherNode
 		if rancherNode, err = rancherApiInitialize(d, meta); err != nil {
 			err = fmt.Errorf("resourceUpdateServer(compute): error: %s", err)
@@ -266,6 +265,11 @@ func resourceUpdateServerCompute(d *schema.ResourceData, meta interface{}) (err 
 			return
 		}
 		if powerState == "up" {
+			if (newCompute.([]interface{})[0].(map[string]interface{}))["safe_removal"].(bool) {
+				err = fmt.Errorf("resourceUpdateServer(compute): server %s has power state up", nodeConfig.Compute.HostName)
+				meta.(*FlexbotConfig).UpdateManagerSetError(err)
+				return
+			}
 			// Cordon/drain worker nodes
 			if rancherNode.NodeWorker {
 				if err = rancherApiNodeCordon(rancherNode); err != nil {
@@ -293,42 +297,46 @@ func resourceUpdateServerCompute(d *schema.ResourceData, meta interface{}) (err 
 					time.Sleep(1 * time.Second)
 				}
 			}
+			if powerState == "up" {
+				if err = ucsm.StopServer(nodeConfig); err != nil {
+					meta.(*FlexbotConfig).UpdateManagerSetError(err)
+					return
+				}
+			}
 		}
-		if powerState == "up" {
-			if err = ucsm.StopServer(nodeConfig); err != nil {
+		if bladeSpecChange {
+			if err = ucsm.UpdateServer(nodeConfig); err != nil {
 				meta.(*FlexbotConfig).UpdateManagerSetError(err)
 				return
 			}
 		}
-		if err = ucsm.UpdateServer(nodeConfig); err != nil {
-			meta.(*FlexbotConfig).UpdateManagerSetError(err)
-			return
-		}
-		if err = ucsm.StartServer(nodeConfig); err != nil {
-			meta.(*FlexbotConfig).UpdateManagerSetError(err)
-			return
-		}
-		if (newCompute.([]interface{})[0].(map[string]interface{}))["wait_for_ssh_timeout"].(int) > 0 && len(sshUser) > 0 && len(sshPrivateKey) > 0 {
-			if err = waitForSsh(nodeConfig, (newCompute.([]interface{})[0].(map[string]interface{}))["wait_for_ssh_timeout"].(int), sshUser, sshPrivateKey); err != nil {
+		if newPowerState == "up" {
+			if err = ucsm.StartServer(nodeConfig); err != nil {
 				meta.(*FlexbotConfig).UpdateManagerSetError(err)
 				return
 			}
-		}
-		// Uncordon worker nodes
-		if rancherNode.NodeWorker {
-			if err = rancherApiNodeUncordon(rancherNode); err != nil {
+			if (newCompute.([]interface{})[0].(map[string]interface{}))["wait_for_ssh_timeout"].(int) > 0 && len(sshUser) > 0 && len(sshPrivateKey) > 0 {
+				if err = waitForSsh(nodeConfig, (newCompute.([]interface{})[0].(map[string]interface{}))["wait_for_ssh_timeout"].(int), sshUser, sshPrivateKey); err != nil {
+					meta.(*FlexbotConfig).UpdateManagerSetError(err)
+					return
+				}
+			}
+			// Uncordon worker nodes
+			if rancherNode.NodeWorker {
+				if err = rancherApiNodeUncordon(rancherNode); err != nil {
+					err = fmt.Errorf("resourceUpdateServer(compute): error: %s", err)
+					meta.(*FlexbotConfig).UpdateManagerSetError(err)
+					return
+				}
+			}
+			if err = rancherApiClusterWaitForState(rancherNode, "active", WAIT4CLUSTER_STATE_TIMEOUT); err != nil {
 				err = fmt.Errorf("resourceUpdateServer(compute): error: %s", err)
 				meta.(*FlexbotConfig).UpdateManagerSetError(err)
 				return
 			}
-		}
-		if err = rancherApiClusterWaitForState(rancherNode, "active", WAIT4CLUSTER_STATE_TIMEOUT); err != nil {
-			err = fmt.Errorf("resourceUpdateServer(compute): error: %s", err)
-			meta.(*FlexbotConfig).UpdateManagerSetError(err)
-			return
-		}
-		if meta.(*FlexbotConfig).NodeGraceTimeout > 0 {
-			time.Sleep(time.Duration(meta.(*FlexbotConfig).NodeGraceTimeout) * time.Second)
+			if meta.(*FlexbotConfig).NodeGraceTimeout > 0 {
+				time.Sleep(time.Duration(meta.(*FlexbotConfig).NodeGraceTimeout) * time.Second)
+			}
 		}
 		if err = resourceReadServer(d, meta); err != nil {
 			meta.(*FlexbotConfig).UpdateManagerSetError(err)
@@ -848,6 +856,7 @@ func setFlexbotOutput(d *schema.ResourceData, meta interface{}, nodeConfig *conf
 		bladeSpec["dn"] = nodeConfig.Compute.BladeSpec.Dn
 		compute["blade_spec"].([]interface{})[0] = bladeSpec
 	}
+	compute["powerstate"] = nodeConfig.Compute.Powerstate
 	storage["svm_name"] = nodeConfig.Storage.SvmName
 	storage["image_repo_name"] = nodeConfig.Storage.ImageRepoName
 	storage["volume_name"] = nodeConfig.Storage.VolumeName

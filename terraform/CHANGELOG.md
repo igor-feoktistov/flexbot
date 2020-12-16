@@ -1,3 +1,12 @@
+## 1.5.4 (December 15, 2020)
+
+FEATURES:
+* **New Argument:** `compute/powerstate` - (Optional) Enables powerstate management for UCS blade.
+
+ENHANCEMENTS:
+
+BUG FIXES:
+
 ## 1.5.3 (December 8, 2020)
 
 FEATURES:

@@ -6,6 +6,7 @@ nodes = {
     blade_spec_dn = ""
     blade_spec_model = "UCSB-B200-M5"
     blade_spec_total_memory = "65536-262144"
+    powerstate = "up"
     os_image = "ubuntu-18.04.05.02-iboot"
     seed_template = "ubuntu-18.04.05.02-cloud-init.template"
     boot_lun_size = 32

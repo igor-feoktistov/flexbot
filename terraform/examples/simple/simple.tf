@@ -109,6 +109,10 @@ resource "flexbot_server" "k8s-node1" {
       # Total memory in MB, supports range
       total_memory = "65536-262144"
     }
+    # Optional - Blade powerstate management.
+    # Default is "up".
+    # Would try to execute graceful shutdown for "down" state following HW shutdown after 60s timeout.
+    powerstate = "up"
     # Optional - By default "destroy" will fail if server has powerstate "on".
     # It is highly recommended to disable it for Rancher nodes to prevent failures
     # in automated nodes management.

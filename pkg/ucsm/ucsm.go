@@ -282,6 +282,9 @@ func DiscoverServer(nodeConfig *config.NodeConfig) (serverExists bool, err error
 			return
 		}
 	}
+	if nodeConfig.Compute.Powerstate, err = util.SpGetPowerState(client, nodeConfig.Compute.SpDn); err != nil {
+		err = fmt.Errorf("DiscoverServer: SpGetPowerState() failure: %s", err)
+	}
 	return
 }
 

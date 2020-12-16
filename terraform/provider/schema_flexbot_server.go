@@ -122,6 +122,20 @@ func schemaFlexbotServer() map[string]*schema.Schema {
 									},
 								},
 							},
+
+						},
+
+					},
+					"powerstate": {
+						Type:     schema.TypeString,
+						Optional: true,
+						Default: "up",
+						ValidateFunc: func(val interface{}, key string) (warns []string, errs []error) {
+							v := val.(string)
+							if !(v == "up" || v == "down") {
+								errs = append(errs, fmt.Errorf("value %q=%s must be either \"up\" or \"down\"", key, v))
+							}
+							return
 						},
 					},
 				},
