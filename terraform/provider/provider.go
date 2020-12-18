@@ -25,7 +25,7 @@ func Provider() terraform.ResourceProvider {
 			},
 			"ipam": {
 				Type:     schema.TypeList,
-				Required: true,
+				Optional: true,
 				MaxItems: 1,
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{
@@ -83,7 +83,7 @@ func Provider() terraform.ResourceProvider {
 			},
 			"compute": {
 				Type:     schema.TypeList,
-				Required: true,
+				Optional: true,
 				MaxItems: 1,
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{
@@ -114,7 +114,7 @@ func Provider() terraform.ResourceProvider {
 			},
 			"storage": {
 				Type:     schema.TypeList,
-				Required: true,
+				Optional: true,
 				MaxItems: 1,
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{
@@ -220,6 +220,7 @@ func Provider() terraform.ResourceProvider {
 		},
 		ResourcesMap: map[string]*schema.Resource{
 			"flexbot_server": resourceFlexbotServer(),
+			"flexbot_repo": resourceFlexbotRepo(),
 		},
 		ConfigureFunc: providerConfigure,
 	}

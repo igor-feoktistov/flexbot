@@ -1,6 +1,6 @@
 GOFMT_FILES?=$$(find . -name '*.go' |grep -v vendor)
 PKG_NAME=flexbot
-PKG_VERSION=1.5.4
+PKG_VERSION=1.6.0
 OSFLAG=$(shell go env GOHOSTOS)
 
 default: build
@@ -23,11 +23,15 @@ fmt:
 release:
 	# Build for darwin-amd64
 	@mkdir -p releases/$(PKG_VERSION)/darwin
-	GOOS=darwin GOARCH=amd64 go build -o releases/$(PKG_VERSION)/darwin/$(PKG_NAME).darwin -v ./cmd/flexbot/...
-	hack/upx-${OSFLAG} releases/$(PKG_VERSION)/darwin/$(PKG_NAME).darwin
+	GOOS=darwin GOARCH=amd64 go build -o releases/$(PKG_VERSION)/darwin/$(PKG_NAME).darwin_amd64 -v ./cmd/flexbot/...
+	hack/upx-${OSFLAG} releases/$(PKG_VERSION)/darwin/$(PKG_NAME).darwin_amd64
 	# Build for linux-amd64
 	@mkdir -p releases/$(PKG_VERSION)/linux
-	GOOS=linux GOARCH=amd64 go build -o releases/$(PKG_VERSION)/linux/$(PKG_NAME).linux -v ./cmd/flexbot/...
-	hack/upx-${OSFLAG} releases/$(PKG_VERSION)/linux/$(PKG_NAME).linux
+	GOOS=linux GOARCH=amd64 go build -o releases/$(PKG_VERSION)/linux/$(PKG_NAME).linux_amd64 -v ./cmd/flexbot/...
+	hack/upx-${OSFLAG} releases/$(PKG_VERSION)/linux/$(PKG_NAME).linux_amd64
+	# Build for linux-arm64
+	@mkdir -p releases/$(PKG_VERSION)/linux
+	GOOS=linux GOARCH=arm64 go build -o releases/$(PKG_VERSION)/linux/$(PKG_NAME).linux_arm64 -v ./cmd/flexbot/...
+	hack/upx-${OSFLAG} releases/$(PKG_VERSION)/linux/$(PKG_NAME).linux_arm64
 
 .PHONY: build vet fmt dist

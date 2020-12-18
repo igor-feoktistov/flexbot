@@ -1,3 +1,14 @@
+## 1.6.0 (December 18, 2020)
+
+FEATURES:
+* **New Resource:** `repo` - Flexbot images and templates repositories management via Terraform
+
+ENHANCEMENTS:
+* Added support for Linux on ARM64 platform
+
+
+BUG FIXES:
+
 ## 1.5.4 (December 15, 2020)
 
 FEATURES:

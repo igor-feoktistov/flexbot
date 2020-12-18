@@ -431,7 +431,7 @@ func DownloadRepoTemplate(nodeConfig *config.NodeConfig, templateName string) (t
 		return
 	}
 	if !fileExists {
-		err = fmt.Errorf("DownloadRepoTemplate: template %s not found", nodeConfig.Storage.TemplateRepoName)
+		err = fmt.Errorf("DownloadRepoTemplate: template %s not found", templateName)
 		return
 	}
 	var fileInfoResponse *ontap.FileGetFileInfoResponse

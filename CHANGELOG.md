@@ -1,3 +1,13 @@
+## 1.6.0 (December 18, 2020)
+
+FEATURES:
+
+* Terraform provider v1.6.0
+* See Terraform CHANGELOG for more details.
+
+ENHANCEMENTS:
+* Added support for Linux on ARM64 platform
+
 ## 1.5.4 (December 15, 2020)
 
 FEATURES:
