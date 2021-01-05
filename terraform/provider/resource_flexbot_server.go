@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"regexp"
+	"strconv"
 	"strings"
 	"bytes"
 	"time"
@@ -65,19 +66,13 @@ func resourceCreateServer(d *schema.ResourceData, meta interface{}) (err error) 
 		err = fmt.Errorf("resourceCreateServer(): serverServer %s already exists", nodeConfig.Compute.HostName)
 		return
 	}
-	var provider ipam.IpamProvider
-	switch nodeConfig.Ipam.Provider {
-	case "Infoblox":
-		provider = ipam.NewInfobloxProvider(&nodeConfig.Ipam)
-	case "Internal":
-		provider = ipam.NewInternalProvider(&nodeConfig.Ipam)
-	default:
-		err = fmt.Errorf("resourceCreateServer(): IPAM provider %s is not implemented", nodeConfig.Ipam.Provider)
+	var ipamProvider ipam.IpamProvider
+	if ipamProvider, err = ipam.NewProvider(&nodeConfig.Ipam); err != nil {
 		return
 	}
 	var preflightErr error
 	preflightErrMsg := []string{}
-	preflightErr = provider.AllocatePreflight(nodeConfig)
+	preflightErr = ipamProvider.AllocatePreflight(nodeConfig)
 	if preflightErr != nil {
 		preflightErrMsg = append(preflightErrMsg, preflightErr.Error())
 	}
@@ -97,7 +92,7 @@ func resourceCreateServer(d *schema.ResourceData, meta interface{}) (err error) 
 		err = fmt.Errorf("resourceCreateServer(): %s", strings.Join(preflightErrMsg, "\n"))
 		return
 	}
-	if err = provider.Allocate(nodeConfig); err != nil {
+	if err = ipamProvider.Allocate(nodeConfig); err != nil {
 		err = fmt.Errorf("resourceCreateServer(): %s", err)
 		return
 	}
@@ -166,17 +161,11 @@ func resourceReadServer(d *schema.ResourceData, meta interface{}) (err error) {
 		return
 	}
 	if serverExists && storageExists {
-		var provider ipam.IpamProvider
-		switch nodeConfig.Ipam.Provider {
-		case "Infoblox":
-			provider = ipam.NewInfobloxProvider(&nodeConfig.Ipam)
-		case "Internal":
-			provider = ipam.NewInternalProvider(&nodeConfig.Ipam)
-		default:
-			err = fmt.Errorf("resourceReadServer(): IPAM provider %s is not implemented", nodeConfig.Ipam.Provider)
+		var ipamProvider ipam.IpamProvider
+		if ipamProvider, err = ipam.NewProvider(&nodeConfig.Ipam); err != nil {
 			return
 		}
-		if err = provider.Discover(nodeConfig); err != nil {
+		if err = ipamProvider.Discover(nodeConfig); err != nil {
 			return
 		}
 		setFlexbotOutput(d, meta, nodeConfig)
@@ -220,6 +209,7 @@ func resourceUpdateServer(d *schema.ResourceData, meta interface{}) (err error) 
 func resourceUpdateServerCompute(d *schema.ResourceData, meta interface{}) (err error) {
 	var powerState, newPowerState string
 	var nodeConfig *config.NodeConfig
+	var oldBladeSpec, newBladeSpec map[string]interface{}
 	compute := d.Get("compute").([]interface{})[0].(map[string]interface{})
 	sshUser := compute["ssh_user"].(string)
 	sshPrivateKey := compute["ssh_private_key"].(string)
@@ -227,22 +217,53 @@ func resourceUpdateServerCompute(d *schema.ResourceData, meta interface{}) (err 
 		return
 	}
 	oldCompute, newCompute := d.GetChange("compute")
-	oldBladeSpec := (oldCompute.([]interface{})[0].(map[string]interface{}))["blade_spec"].([]interface{})[0].(map[string]interface{})
-	newBladeSpec := (newCompute.([]interface{})[0].(map[string]interface{}))["blade_spec"].([]interface{})[0].(map[string]interface{})
+	if len((oldCompute.([]interface{})[0].(map[string]interface{}))["blade_spec"].([]interface{})) > 0 {
+		oldBladeSpec = (oldCompute.([]interface{})[0].(map[string]interface{}))["blade_spec"].([]interface{})[0].(map[string]interface{})
+	} else {
+		oldBladeSpec = make(map[string]interface{})
+		oldBladeSpec["dn"] = nodeConfig.Compute.BladeAssigned.Dn
+		oldBladeSpec["model"] = nodeConfig.Compute.BladeAssigned.Model
+		oldBladeSpec["num_of_cpus"] = nodeConfig.Compute.BladeAssigned.NumOfCpus
+		oldBladeSpec["num_of_cores"] = nodeConfig.Compute.BladeAssigned.NumOfCores
+		oldBladeSpec["total_memory"] = nodeConfig.Compute.BladeAssigned.TotalMemory
+	}
 	bladeSpecChange := false
-	powerStateChange := false
-	for _, specItem := range []string{"dn", "model", "num_of_cpus", "num_of_cores", "total_memory"} {
-		if oldBladeSpec[specItem].(string) != newBladeSpec[specItem].(string) {
-			bladeSpecChange = true
+	if len((newCompute.([]interface{})[0].(map[string]interface{}))["blade_spec"].([]interface{})) > 0 {
+		newBladeSpec = (newCompute.([]interface{})[0].(map[string]interface{}))["blade_spec"].([]interface{})[0].(map[string]interface{})
+		for _, specItem := range []string{"dn", "model"} {
+			if oldBladeSpec[specItem].(string) != newBladeSpec[specItem].(string) && len(newBladeSpec[specItem].(string)) > 0 {
+				var matched bool
+				if matched, err = regexp.MatchString(newBladeSpec[specItem].(string), compute["blade_assigned"].([]interface{})[0].(map[string]interface{})[specItem].(string)); err != nil {
+					err = fmt.Errorf("resourceUpdateServer(compute):  regexp.MatchString(%s), error: %s", newBladeSpec[specItem].(string), err)
+					return
+				}
+				if matched == false {
+					bladeSpecChange = true
+				}
+			}
+		}
+		for _, specItem := range []string{"num_of_cpus", "num_of_cores", "total_memory"} {
+			if oldBladeSpec[specItem].(string) != newBladeSpec[specItem].(string) && len(newBladeSpec[specItem].(string)) > 0 {
+				var inRange bool
+				var specValue int
+				if specValue, err = strconv.Atoi(compute["blade_assigned"].([]interface{})[0].(map[string]interface{})[specItem].(string)); err != nil {
+					err = fmt.Errorf("resourceUpdateServer(compute): unexpected value %s=%s, error: %s", specItem, compute["blade_assigned"].([]interface{})[0].(map[string]interface{})[specItem].(string), err)
+					return
+				}
+				if inRange, err = valueInRange(newBladeSpec[specItem].(string), specValue); err != nil {
+					err = fmt.Errorf("resourceUpdateServer(compute): unexpected blade_spec value %s=%s, error: %s", specItem, newBladeSpec[specItem].(string), err)
+					return
+				}
+				if inRange == false {
+					bladeSpecChange = true
+				}
+			}
 		}
 	}
 	if bladeSpecChange {
-		nodeConfig.Compute.BladeSpec.Dn = ""
-	}
-	if oldBladeSpec["dn"].(string) != newBladeSpec["dn"].(string) {
 		nodeConfig.Compute.BladeSpec.Dn = newBladeSpec["dn"].(string)
-		bladeSpecChange = true
 	}
+	powerStateChange := false
 	if powerState, err = ucsm.GetServerPowerState(nodeConfig); err != nil {
 		return
 	}
@@ -714,17 +735,11 @@ func resourceDeleteServer(d *schema.ResourceData, meta interface{}) (err error) 
 	if stepErr != nil {
 		stepErrMsg = append(stepErrMsg, stepErr.Error())
 	}
-	var provider ipam.IpamProvider
-	switch nodeConfig.Ipam.Provider {
-	case "Infoblox":
-		provider = ipam.NewInfobloxProvider(&nodeConfig.Ipam)
-	case "Internal":
-		provider = ipam.NewInternalProvider(&nodeConfig.Ipam)
-	default:
-		err = fmt.Errorf("resourceDeleteServer(): IPAM provider %s is not implemented", nodeConfig.Ipam.Provider)
+	var ipamProvider ipam.IpamProvider
+	if ipamProvider, err = ipam.NewProvider(&nodeConfig.Ipam); err != nil {
 		return
 	}
-	stepErr = provider.Release(nodeConfig)
+	stepErr = ipamProvider.Release(nodeConfig)
 	if stepErr != nil {
 		stepErrMsg = append(stepErrMsg, stepErr.Error())
 	}
@@ -851,10 +866,16 @@ func setFlexbotOutput(d *schema.ResourceData, meta interface{}, nodeConfig *conf
 	network := d.Get("network").([]interface{})[0].(map[string]interface{})
 	storage := d.Get("storage").([]interface{})[0].(map[string]interface{})
 	compute["sp_dn"] = nodeConfig.Compute.SpDn
-	if len(compute["blade_spec"].([]interface{})) > 0 {
-		bladeSpec := compute["blade_spec"].([]interface{})[0].(map[string]interface{})
-		bladeSpec["dn"] = nodeConfig.Compute.BladeSpec.Dn
-		compute["blade_spec"].([]interface{})[0] = bladeSpec
+	bladeAssigned := make(map[string]interface{})
+	bladeAssigned["dn"] = nodeConfig.Compute.BladeAssigned.Dn
+	bladeAssigned["model"] = nodeConfig.Compute.BladeAssigned.Model
+	bladeAssigned["num_of_cpus"] = nodeConfig.Compute.BladeAssigned.NumOfCpus
+	bladeAssigned["num_of_cores"] = nodeConfig.Compute.BladeAssigned.NumOfCores
+	bladeAssigned["total_memory"] = nodeConfig.Compute.BladeAssigned.TotalMemory
+	if len(compute["blade_assigned"].([]interface{})) > 0 {
+		compute["blade_assigned"].([]interface{})[0] = bladeAssigned
+	} else {
+		compute["blade_assigned"] = append(compute["blade_assigned"].([]interface{}), bladeAssigned)
 	}
 	compute["powerstate"] = nodeConfig.Compute.Powerstate
 	storage["svm_name"] = nodeConfig.Storage.SvmName

@@ -2,10 +2,12 @@ pass_phrase = "secret"
 
 nodes = {
   node-k8s01 = {
-    #blade_spec_dn = "sys/chassis-4/blade-7"
-    blade_spec_dn = ""
-    blade_spec_model = "UCSB-B200-M5"
-    blade_spec_total_memory = "65536-262144"
+    blade_spec = {
+      #dn = "sys/chassis-4/blade-7"
+      dn = ""
+      model = "UCSB-B200-M5"
+      total_memory = "65536-262144"
+    }
     powerstate = "up"
     os_image = "ubuntu-18.04.05.02-iboot"
     seed_template = "ubuntu-18.04.05.02-cloud-init.template"
@@ -15,10 +17,13 @@ nodes = {
     snapshots = []
   }
   node-k8s02 = {
-    #blade_spec_dn = "sys/chassis-5/blade-1"
-    blade_spec_dn = ""
-    blade_spec_model = "UCSB-B200-M5"
-    blade_spec_total_memory = "65536-262144"
+    blade_spec = {
+      #dn = "sys/chassis-5/blade-1"
+      dn = ""
+      model = "UCSB-B200-M5"
+      total_memory = "65536-262144"
+    }
+    powerstate = "up"
     os_image = "ubuntu-18.04.05.02-iboot"
     seed_template = "ubuntu-18.04.05.02-cloud-init.template"
     boot_lun_size = 32
@@ -27,10 +32,13 @@ nodes = {
     snapshots = []
   }
   node-k8s03 = {
-    #blade_spec_dn = "sys/chassis-6/blade-3"
-    blade_spec_dn = ""
-    blade_spec_model = "UCSB-B200-M5"
-    blade_spec_total_memory = "65536-262144"
+    blade_spec = {
+      #dn = "sys/chassis-6/blade-3"
+      dn = ""
+      model = "UCSB-B200-M5"
+      total_memory = "65536-262144"
+    }
+    powerstate = "up"
     os_image = "ubuntu-18.04.05.02-iboot"
     seed_template = "ubuntu-18.04.05.02-cloud-init.template"
     boot_lun_size = 32

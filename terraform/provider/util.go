@@ -5,6 +5,8 @@ import (
 	"net"
 	"bytes"
 	"time"
+	"regexp"
+	"strconv"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -105,4 +107,24 @@ func stringSliceElementExists(array []string, elem string) (bool) {
 		}
 	}
 	return false
+}
+
+func valueInRange(rangeStr string, value int) (bool, error) {
+	var err error
+	var rangeLower, rangeUpper int
+	re := regexp.MustCompile(`([0-9]+)\s*-\s*([0-9]*)`)
+	subMatch := re.FindStringSubmatch(rangeStr)
+	if len(subMatch) == 3 {
+		if rangeLower, err = strconv.Atoi(subMatch[1]); err != nil {
+			return false, err
+		}
+		if rangeUpper, err = strconv.Atoi(subMatch[2]); err != nil {
+			return false, err
+		}
+		return (value >= rangeLower && value <= rangeUpper), nil
+	}
+	if rangeLower, err =strconv.Atoi(rangeStr); err != nil {
+		return false, err
+	}
+	return (rangeLower == value), nil
 }

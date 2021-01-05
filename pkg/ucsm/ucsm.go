@@ -42,6 +42,19 @@ func AssignBlade(client *api.Client, nodeConfig *config.NodeConfig) (err error) 
 				return
 			}
 			if assocState == "associated" {
+				var computeBlade *mo.ComputeBlade
+				if computeBlade, err = util.SpGetComputeBlade(client, nodeConfig.Compute.SpDn); err != nil {
+					err = fmt.Errorf("AssignBlade: SpGetComputeBlade(): %s", err)
+            				return
+    				}
+            			nodeConfig.Compute.BladeSpec.Dn = computeBlade.Dn
+            			nodeConfig.Compute.BladeAssigned = util.BladeSpec{
+            				Dn: computeBlade.Dn,
+            				Model: computeBlade.Model,
+            				NumOfCpus: strconv.Itoa(computeBlade.NumOfCpus),
+            				NumOfCores: strconv.Itoa(computeBlade.NumOfCores),
+            				TotalMemory: strconv.Itoa(computeBlade.TotalMemory),
+            			}
 				var vnicsEther *[]mo.VnicEther
 				if vnicsEther, err = util.SpGetVnicsEther(client, nodeConfig.Compute.SpDn); err != nil {
 					err = fmt.Errorf("AssignBlade: SpGetVnicsEther() failure: %s", err)
@@ -54,7 +67,6 @@ func AssignBlade(client *api.Client, nodeConfig *config.NodeConfig) (err error) 
 						}
 					}
 				}
-				nodeConfig.Compute.BladeSpec.Dn = pnDn
 				return
 			} else {
 				assignErr = fmt.Errorf("AssignBlade: SpWaitForAssociation(): association state is %s", assocState)
@@ -213,8 +225,14 @@ func DiscoverServer(nodeConfig *config.NodeConfig) (serverExists bool, err error
 	if computeBlade, err = util.SpGetComputeBlade(client, nodeConfig.Compute.SpDn); err != nil {
 		err = fmt.Errorf("DiscoverServer: SpGetComputeBlade(): %s", err)
                 return
-        } else {
-                nodeConfig.Compute.BladeSpec.Dn = computeBlade.Dn
+        }
+        nodeConfig.Compute.BladeSpec.Dn = computeBlade.Dn
+        nodeConfig.Compute.BladeAssigned = util.BladeSpec{
+    		Dn: computeBlade.Dn,
+            	Model: computeBlade.Model,
+            	NumOfCpus: strconv.Itoa(computeBlade.NumOfCpus),
+            	NumOfCores: strconv.Itoa(computeBlade.NumOfCores),
+            	TotalMemory: strconv.Itoa(computeBlade.TotalMemory),
         }
 	var vnicsEther *[]mo.VnicEther
 	if vnicsEther, err = util.SpGetVnicsEther(client, nodeConfig.Compute.SpDn); err != nil {
@@ -355,28 +373,34 @@ func DeleteServer(nodeConfig *config.NodeConfig) (err error) {
 
 func StartServer(nodeConfig *config.NodeConfig) (err error) {
 	var client *api.Client
+	var lsPower *mo.LsPower
 	spDn := nodeConfig.Compute.SpOrg + "/ls-" + nodeConfig.Compute.HostName
 	if client, err = util.AaaLogin("https://"+nodeConfig.Compute.UcsmCredentials.Host+"/", nodeConfig.Compute.UcsmCredentials.User, nodeConfig.Compute.UcsmCredentials.Password); err != nil {
 		err = fmt.Errorf("StartServer: AaaLogin() failure: %s", err)
 		return
 	}
 	defer client.AaaLogout()
-	if _, err = util.SpSetPowerState(client, spDn, "up"); err != nil {
+	if lsPower, err = util.SpSetPowerState(client, spDn, "up"); err != nil {
 		err = fmt.Errorf("StartServer: SpSetPowerState() failure: %s", err)
+	} else {
+		nodeConfig.Compute.Powerstate = lsPower.State
 	}
 	return
 }
 
 func StopServer(nodeConfig *config.NodeConfig) (err error) {
 	var client *api.Client
+	var lsPower *mo.LsPower
 	spDn := nodeConfig.Compute.SpOrg + "/ls-" + nodeConfig.Compute.HostName
 	if client, err = util.AaaLogin("https://"+nodeConfig.Compute.UcsmCredentials.Host+"/", nodeConfig.Compute.UcsmCredentials.User, nodeConfig.Compute.UcsmCredentials.Password); err != nil {
 		err = fmt.Errorf("StopServer: AaaLogin() failure: %s", err)
 		return
 	}
 	defer client.AaaLogout()
-	if _, err = util.SpSetPowerState(client, spDn, "down"); err != nil {
+	if lsPower, err = util.SpSetPowerState(client, spDn, "down"); err != nil {
 		err = fmt.Errorf("StopServer: SpSetPowerState() failure: %s", err)
+	} else {
+		nodeConfig.Compute.Powerstate = lsPower.State
 	}
 	return
 }

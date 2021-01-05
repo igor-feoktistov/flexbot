@@ -88,6 +88,7 @@ type Compute struct {
 	SpTemplate      string         `yaml:"spTemplate" json:"spTemplate"`
 	SpDn            string         `yaml:"spDn,omitempty" json:"spDn,omitempty"`
 	BladeSpec       util.BladeSpec `yaml:"bladeSpec,omitempty" json:"bladeSpec,omitempty"`
+	BladeAssigned   util.BladeSpec `yaml:"bladeAssigned,omitempty" json:"bladeAssigned,omitempty"`
 	Powerstate	string         `yaml:"powerState,omitempty" json:"powerState,omitempty"`
 }
 

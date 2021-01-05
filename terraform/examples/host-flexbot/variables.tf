@@ -1,8 +1,10 @@
 variable "nodes" {
   type = map(object({
-    blade_spec_dn = string
-    blade_spec_model = string
-    blade_spec_total_memory = string
+    blade_spec = object({
+      dn = string
+      model = string
+      total_memory = string
+    })
     powerstate = string
     os_image = string
     seed_template = string

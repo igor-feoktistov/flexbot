@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	version = "1.6.0"
+	version = "1.6.1"
 )
 
 type OperationResult interface {
@@ -134,17 +134,11 @@ func (result *NodeResult) DumpResult(r interface{}, resultDest string, resultFor
 }
 
 func provisionServer(nodeConfig *config.NodeConfig) (err error) {
-	var provider ipam.IpamProvider
-	switch nodeConfig.Ipam.Provider {
-	case "Infoblox":
-		provider = ipam.NewInfobloxProvider(&nodeConfig.Ipam)
-	case "Internal":
-		provider = ipam.NewInternalProvider(&nodeConfig.Ipam)
-	default:
-		err = fmt.Errorf("IPAM:Provider \"%s\" is not implemented", nodeConfig.Ipam.Provider)
+	var ipamProvider ipam.IpamProvider
+	if ipamProvider, err = ipam.NewProvider(&nodeConfig.Ipam); err != nil {
 		return
 	}
-	if err = provider.Allocate(nodeConfig); err != nil {
+	if err = ipamProvider.Allocate(nodeConfig); err != nil {
 		return
 	}
 	if err = ontap.CreateBootStorage(nodeConfig); err != nil {
@@ -167,35 +161,23 @@ func discoverServer(nodeConfig *config.NodeConfig) (serverExists bool, err error
 		return
 	}
 	if serverExists {
-		var provider ipam.IpamProvider
-		switch nodeConfig.Ipam.Provider {
-		case "Infoblox":
-			provider = ipam.NewInfobloxProvider(&nodeConfig.Ipam)
-		case "Internal":
-			provider = ipam.NewInternalProvider(&nodeConfig.Ipam)
-		default:
-			err = fmt.Errorf("IPAM:Provider \"%s\" is not implemented", nodeConfig.Ipam.Provider)
-			return
-		}
-		if err = provider.Discover(nodeConfig); err != nil {
-			return
+		var ipamProvider ipam.IpamProvider
+		if ipamProvider, err = ipam.NewProvider(&nodeConfig.Ipam); err == nil {
+			if err = ipamProvider.Discover(nodeConfig); err != nil {
+				return
+			}
 		}
 	}
 	return
 }
 
 func provisionServerPreflight(nodeConfig *config.NodeConfig) (err error) {
-	var provider ipam.IpamProvider
 	var stepErr error
-	switch nodeConfig.Ipam.Provider {
-	case "Infoblox":
-		provider = ipam.NewInfobloxProvider(&nodeConfig.Ipam)
-	case "Internal":
-		provider = ipam.NewInternalProvider(&nodeConfig.Ipam)
-	default:
-		err = fmt.Errorf("IPAM:Provider \"%s\" is not implemented", nodeConfig.Ipam.Provider)
+	var ipamProvider ipam.IpamProvider
+	if ipamProvider, err = ipam.NewProvider(&nodeConfig.Ipam); err != nil {
+		return
 	}
-	if stepErr = provider.AllocatePreflight(nodeConfig); stepErr != nil {
+	if stepErr = ipamProvider.AllocatePreflight(nodeConfig); stepErr != nil {
 		if err == nil {
 			err = stepErr
 		} else {
@@ -227,10 +209,12 @@ func provisionServerPreflight(nodeConfig *config.NodeConfig) (err error) {
 }
 
 func deprovisionServer(nodeConfig *config.NodeConfig) (err error) {
-	var provider ipam.IpamProvider
 	var stepErr error
 	var powerState string
-
+	var ipamProvider ipam.IpamProvider
+	if ipamProvider, err = ipam.NewProvider(&nodeConfig.Ipam); err != nil {
+		return
+	}
 	if powerState, err = ucsm.GetServerPowerState(nodeConfig); err != nil {
 		return
 	} else {
@@ -246,15 +230,6 @@ func deprovisionServer(nodeConfig *config.NodeConfig) (err error) {
 			err = fmt.Errorf("%s\n%s", err, stepErr)
 		}
 	}
-	switch nodeConfig.Ipam.Provider {
-	case "Infoblox":
-		provider = ipam.NewInfobloxProvider(&nodeConfig.Ipam)
-	case "Internal":
-		provider = ipam.NewInternalProvider(&nodeConfig.Ipam)
-	default:
-		err = fmt.Errorf("IPAM:Provider \"%s\" is not implemnted", nodeConfig.Ipam.Provider)
-		return
-	}
 	if stepErr = ontap.DeleteBootStorage(nodeConfig); stepErr != nil {
 		if err == nil {
 			err = stepErr
@@ -262,7 +237,7 @@ func deprovisionServer(nodeConfig *config.NodeConfig) (err error) {
 			err = fmt.Errorf("%s\n%s", err, stepErr)
 		}
 	}
-	if stepErr = provider.Release(nodeConfig); stepErr != nil {
+	if stepErr = ipamProvider.Release(nodeConfig); stepErr != nil {
 		if err == nil {
 			err = stepErr
 		} else {
@@ -274,7 +249,6 @@ func deprovisionServer(nodeConfig *config.NodeConfig) (err error) {
 
 func restoreSnapshot(nodeConfig *config.NodeConfig, snapshotName string) (err error) {
 	var powerState string
-
 	if powerState, err = ucsm.GetServerPowerState(nodeConfig); err != nil {
 		return
 	} else {

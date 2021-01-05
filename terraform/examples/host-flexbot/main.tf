@@ -38,9 +38,9 @@ resource "flexbot_server" "node" {
     sp_org = var.node_config.compute.sp_org
     sp_template = var.node_config.compute.sp_template
     blade_spec {
-      dn = each.value.blade_spec_dn
-      model = each.value.blade_spec_model
-      total_memory = each.value.blade_spec_total_memory
+      dn = each.value.blade_spec.dn
+      model = each.value.blade_spec.model
+      total_memory = each.value.blade_spec.total_memory
     }
     powerstate = each.value.powerstate
     safe_removal = false

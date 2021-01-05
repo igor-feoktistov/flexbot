@@ -8,7 +8,6 @@ import (
 	"os"
 	"strings"
 	"bytes"
-	"sync"
 	"path/filepath"
 	"text/template"
 
@@ -80,12 +79,12 @@ func CreateSeedStorage(nodeConfig *config.NodeConfig) (err error) {
 			return
 		}
 	}
-	wabuf := newWriteAtBuffer(nil)
-	if err = isoWriter.WriteTo(wabuf, "cidata"); err != nil {
+	var isoBuffer bytes.Buffer
+	if err = isoWriter.WriteTo(&isoBuffer, "cidata"); err != nil {
 		err = fmt.Errorf("CreateSeedStorage: failed to write ISO image: %v", err)
 		return
 	}
-	isoReader := bytes.NewReader(wabuf.Bytes())
+	isoReader := bytes.NewReader(isoBuffer.Bytes())
 	var c *ontap.Client
 	var response *ontap.SingleResultResponse
 	if c, err = CreateCdotClient(nodeConfig); err != nil {
@@ -177,40 +176,4 @@ func CreateSeedStoragePreflight(nodeConfig *config.NodeConfig) (err error) {
 		}
 	}
 	return
-}
-
-// a stripped down version of the WriteAtBuffer from
-// https://github.com/aws/aws-sdk-go/blob/master/aws/types.go and
-// https://github.com/LINBIT/virter/blob/master/internal/virter/writeatbuffer.go
-
-type writeAtBuffer struct {
-	buf []byte
-	m   sync.Mutex
-}
-
-func newWriteAtBuffer(buf []byte) *writeAtBuffer {
-	return &writeAtBuffer{buf: buf}
-}
-
-func (b *writeAtBuffer) WriteAt(p []byte, pos int64) (n int, err error) {
-	pLen := len(p)
-	expLen := pos + int64(pLen)
-	b.m.Lock()
-	defer b.m.Unlock()
-	if int64(len(b.buf)) < expLen {
-		if int64(cap(b.buf)) < expLen {
-			newBuf := make([]byte, expLen)
-			copy(newBuf, b.buf)
-			b.buf = newBuf
-		}
-		b.buf = b.buf[:expLen]
-	}
-	copy(b.buf[pos:], p)
-	return pLen, nil
-}
-
-func (b *writeAtBuffer) Bytes() []byte {
-	b.m.Lock()
-	defer b.m.Unlock()
-	return b.buf
 }

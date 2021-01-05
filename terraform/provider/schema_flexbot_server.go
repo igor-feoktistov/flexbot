@@ -126,6 +126,43 @@ func schemaFlexbotServer() map[string]*schema.Schema {
 						},
 
 					},
+					"blade_assigned": {
+						Type:     schema.TypeList,
+						Optional: true,
+						Computed: true,
+						MaxItems: 1,
+						Elem: &schema.Resource{
+							Schema: map[string]*schema.Schema{
+								"dn": {
+									Type:     schema.TypeString,
+									Optional: true,
+									Computed: true,
+								},
+								"model": {
+									Type:     schema.TypeString,
+									Optional: true,
+									Computed: true,
+								},
+								"num_of_cpus": {
+									Type:     schema.TypeString,
+									Optional: true,
+									Computed: true,
+								},
+								"num_of_cores": {
+									Type:     schema.TypeString,
+									Optional: true,
+									Computed: true,
+								},
+								"total_memory": {
+									Type:     schema.TypeString,
+									Optional: true,
+									Computed: true,
+								},
+							},
+
+						},
+
+					},
 					"powerstate": {
 						Type:     schema.TypeString,
 						Optional: true,
