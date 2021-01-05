@@ -1,4 +1,4 @@
-## 1.6.1 (Janaury 4, 2021)
+## 1.6.1 (January 4, 2021)
 
 FEATURES:
 
