@@ -3,10 +3,15 @@ package flexbot
 import (
 	"fmt"
 	"sync"
+	"strings"
+	"encoding/base64"
 
+	"flexbot/pkg/util/crypt"
+	"flexbot/pkg/rancher"
+	nodeConfig "flexbot/pkg/config"
+	"github.com/denisbrodbeck/machineid"
 	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
         "github.com/hashicorp/terraform-plugin-sdk/terraform"
-	"flexbot/pkg/rancher"
 	rancherManagementClient "github.com/rancher/rancher/pkg/client/generated/management/v3"
 )
 
@@ -14,9 +19,10 @@ func Provider() terraform.ResourceProvider {
 	return &schema.Provider{
 		Schema: map[string]*schema.Schema{
 			"pass_phrase": {
-				Type:     schema.TypeString,
-				Optional: true,
+				Type: schema.TypeString,
+				Optional:  true,
 				Sensitive: true,
+				Default:   "",
 			},
 			"synchronized_updates": {
 				Type:     schema.TypeBool,
@@ -175,6 +181,11 @@ func Provider() terraform.ResourceProvider {
 							Type:     schema.TypeString,
 							Required: true,
 						},
+						"wait_for_node_timeout": {
+							Optional: true,
+							Type:     schema.TypeInt,
+							Default:  0,
+						},
 						"node_grace_timeout": {
 							Optional: true,
 							Type:     schema.TypeInt,
@@ -222,6 +233,9 @@ func Provider() terraform.ResourceProvider {
 			"flexbot_server": resourceFlexbotServer(),
 			"flexbot_repo": resourceFlexbotRepo(),
 		},
+		DataSourcesMap: map[string]*schema.Resource{
+			"flexbot_crypt": dataSourceFelxbotCrypt(),
+		},
 		ConfigureFunc: providerConfigure,
 	}
 }
@@ -239,9 +253,29 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 			GracePeriod: int64(rancher_api["drain_input"].([]interface{})[0].(map[string]interface{})["grace_period"].(int)),
 			Timeout: int64(rancher_api["drain_input"].([]interface{})[0].(map[string]interface{})["timeout"].(int)),
 		}
+		tokenKey := rancher_api["token_key"].(string)
+		if strings.HasPrefix(tokenKey, "base64:") {
+			var b, b64 []byte
+			passPhrase := d.Get("pass_phrase").(string)
+			if len(passPhrase) == 0 {
+				if passPhrase, err = machineid.ID(); err != nil {
+					err = fmt.Errorf("providerConfigure(): machineid.ID() failure: %s", err)
+					return nil, err
+				}
+			}
+			if b64, err = base64.StdEncoding.DecodeString(tokenKey[7:]); err != nil {
+				err = fmt.Errorf("providerConfigure(): base64.StdEncoding.DecodeString() failure: %s", err)
+				return nil, err
+			}
+			if b, err = crypt.Decrypt(b64, passPhrase); err != nil {
+				err = fmt.Errorf("providerConfigure(): Decrypt() failure: %s", err)
+				return nil, err
+			}
+			tokenKey = string(b)
+		}
 		rancherConfig := &rancher.Config{
 			URL: rancher_api["api_url"].(string),
-			TokenKey: rancher_api["token_key"].(string),
+			TokenKey: tokenKey,
 			Insecure: rancher_api["insecure"].(bool),
 			NodeDrainInput: nodeDrainInput,
 			Retries: 3,
@@ -251,7 +285,9 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 			FlexbotProvider: d,
 			RancherApiEnabled: rancher_api["enabled"].(bool),
 			RancherConfig: rancherConfig,
+			WaitForNodeTimeout: rancher_api["wait_for_node_timeout"].(int),
 			NodeGraceTimeout: rancher_api["node_grace_timeout"].(int),
+			NodeConfig: make(map[string]*nodeConfig.NodeConfig),
 		}
 		if rancher_api["enabled"].(bool) {
 			if err = rancherConfig.ManagementClient(); err != nil {
@@ -263,6 +299,7 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 			Sync: sync.Mutex{},
 			FlexbotProvider: d,
 			RancherApiEnabled: false,
+			NodeConfig: make(map[string]*nodeConfig.NodeConfig),
 		}
 	}
 	return config, err

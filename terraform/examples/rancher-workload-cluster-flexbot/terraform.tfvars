@@ -1,90 +1,3 @@
-pass_phrase = "secret"
-
-nodes = {
-  masters = {
-    node-k8s01 = {
-      #blade_spec_dn = "sys/chassis-6/blade-3"
-      blade_spec_dn = ""
-      blade_spec_model = "UCSB-B200-M5"
-      blade_spec_total_memory = "65536-262144"
-      powerstate = "up"
-      os_image = "ubuntu-18.04.05.02-iboot"
-      seed_template = "ubuntu-18.04.05.02-cloud-init.template"
-      boot_lun_size = 32
-      data_lun_size = 64
-      restore = {restore = false, snapshot_name = ""}
-      snapshots = []
-    }
-    node-k8s02 = {
-      #blade_spec_dn = "sys/chassis-7/blade-3"
-      blade_spec_dn = ""
-      blade_spec_model = "UCSB-B200-M5"
-      blade_spec_total_memory = "65536-262144"
-      powerstate = "up"
-      os_image = "ubuntu-18.04.05.02-iboot"
-      seed_template = "ubuntu-18.04.05.02-cloud-init.template"
-      boot_lun_size = 32
-      data_lun_size = 64
-      restore = {restore = false, snapshot_name = ""}
-      snapshots = []
-    }
-    node-k8s03 = {
-      #blade_spec_dn = "sys/chassis-8/blade-3"
-      blade_spec_dn = ""
-      blade_spec_model = "UCSB-B200-M5"
-      blade_spec_total_memory = "65536-262144"
-      powerstate = "up"
-      os_image = "ubuntu-18.04.05.02-iboot"
-      seed_template = "ubuntu-18.04.05.02-cloud-init.template"
-      boot_lun_size = 32
-      data_lun_size = 64
-      restore = {restore = false, snapshot_name = ""}
-      snapshots = []
-    }
-  }
-  workers = {
-    node-k8s04 = {
-      #blade_spec_dn = "sys/chassis-6/blade-4"
-      blade_spec_dn = ""
-      blade_spec_model = "UCSB-B200-M5"
-      blade_spec_total_memory = "65536-262144"
-      powerstate = "up"
-      os_image = "ubuntu-18.04.05.02-iboot"
-      seed_template = "ubuntu-18.04.05.02-cloud-init.template"
-      boot_lun_size = 32
-      data_lun_size = 128
-      restore = {restore = false, snapshot_name = ""}
-      snapshots = []
-    }
-    node-k8s05 = {
-      #blade_spec_dn = "sys/chassis-7/blade-4"
-      blade_spec_dn = ""
-      blade_spec_model = "UCSB-B200-M5"
-      blade_spec_total_memory = "65536-262144"
-      powerstate = "up"
-      os_image = "ubuntu-18.04.05.02-iboot"
-      seed_template = "ubuntu-18.04.05.02-cloud-init.template"
-      boot_lun_size = 32
-      data_lun_size = 128
-      restore = {restore = false, snapshot_name = ""}
-      snapshots = []
-    }
-    node-k8s06 = {
-      #blade_spec_dn = "sys/chassis-8/blade-4"
-      blade_spec_dn = ""
-      blade_spec_model = "UCSB-B200-M5"
-      blade_spec_total_memory = "65536-262144"
-      powerstate = "up"
-      os_image = "ubuntu-18.04.05.02-iboot"
-      seed_template = "ubuntu-18.04.05.02-cloud-init.template"
-      boot_lun_size = 32
-      data_lun_size = 128
-      restore = {restore = false, snapshot_name = ""}
-      snapshots = []
-    }
-  }
-}
-
 flexbot_credentials = {
   infoblox = {
     host = "ib.example.com"
@@ -112,7 +25,7 @@ node_config = {
   }
   compute = {
     sp_org = "org-root/org-Kubernetes"
-    sp_template = "org-root/org-Kubernetes/ls-K8S-01-SPD-01"
+    sp_template = "org-root/org-Kubernetes/ls-K8S-01-PROD-01"
     ssh_user = "cloud-user"
     ssh_public_key_path = "~/.ssh/id_rsa.pub"
     ssh_private_key_path = "~/.ssh/id_rsa"
@@ -162,8 +75,17 @@ node_config = {
 
 rancher_config = {
   api_url = "https://rancher.example.com"
-  cluster_name = "npc-us-west-01-01"
-  kubernetes_version = "v1.19.3-rancher1-2"
+  cluster_name = "op-us-west-01-01"
+  token_key = "base64:wKIPlAQ5rwsKlvqJjvtiWHeabSOQP<...skip...>MoSLErt2L4JeJdpztfA=="
+  kubernetes_version = "v1.19.6-rancher1-1"
+  s3_backup = {
+    region = "us-east-1"
+    endpoint = "s3-accesspoint.us-east-1.amazonaws.com"
+    access_key_id = "base64:ZoNJRxrA/lm1Wme5W<...skip...>c9LMgwDgoYYT26fxzySnod9VjBQs"
+    secret_access_key = "base64:Gk3HYIMSdFP/k<...skip...>sFgBji3sS+ggQCcUfErFGlCJFiw="
+    bucket_name = "op-us-west-01-01-backups"
+    folder = "rancher"
+  }
 }
 
 output_path = "output"

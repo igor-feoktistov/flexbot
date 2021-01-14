@@ -6,11 +6,12 @@ Make sure to update respective `terraform.tfvars` files with your own infrastruc
 ## Examples
 
 * [simple](./simple) Simple configuration with a lot of comments.
-* [repo](./repo) Manages images and templates repositories.
-* [host-flexbot](./host-flexbot) Provisions multiple servers the same configuration in one shot.
-* [rke-flexbot](./rke-flexbot) Provisions RKE cluster.
-* [rancher-server-flexbot](./rancher-server-flexbot) Provisions Rancher Server on top of RKE cluster.
-* [rancher-workload-cluster-flexbot](./rancher-workload-cluster-flexbot) Provisions Rancher custom workload cluster.
+* [repo](./repo) Uploads and manages OS images and cloud-init templates repositories.
+* [host-flexbot](./host-flexbot) Provisions and manages multiple servers the same configuration in one shot.
+* [rke-flexbot](./rke-flexbot) Provisions and manages RKE cluster with bare-metal nodes on FlexPOD.
+* [rancher-server-flexbot](./rancher-server-flexbot) Provisions and manages Rancher Management Server.
+* [rancher-workload-cluster-flexbot](./rancher-workload-cluster-flexbot) Provisions and manages Rancher Custom Cluster.
+* [crypt](./crypt) Generate encrypted string values for various use cases.
 
 ### Note
 You can easily adapt the examples with IPAM provider via Terraform.

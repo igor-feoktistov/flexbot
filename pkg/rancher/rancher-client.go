@@ -303,6 +303,7 @@ func (client *Client) GetNode(clusterId string, nodeIpAddr string) (nodeId strin
 func (client *Client) GetNodeRole(nodeId string) (controlplane bool , etcd bool, worker bool, err error) {
 	var node *managementClient.Node
         if node, err = client.Management.Node.ByID(nodeId); err != nil {
+		err = fmt.Errorf("rancher.Node.ByID() error: %s", err)
     		return
         }
         return node.ControlPlane, node.Etcd, node.Worker, nil
@@ -337,6 +338,7 @@ func (client *Client) NodeWaitForState(nodeId string, states string, timeout int
 	giveupTime := time.Now().Add(time.Second * time.Duration(timeout))
     	for time.Now().Before(giveupTime) {
             	if node, err = client.Management.Node.ByID(nodeId); err != nil {
+			err = fmt.Errorf("rancher.Node.ByID() error: %s", err)
             		return err
             	}
             	for _, state := range strings.Split(states, ",") {
@@ -355,6 +357,7 @@ func (client *Client) NodeCordonDrain(nodeId string, nodeDrainInput *managementC
 	var node *managementClient.Node
 	var ok bool
         if node, err = client.Management.Node.ByID(nodeId); err != nil {
+		err = fmt.Errorf("rancher.Node.ByID() error: %s", err)
     		return
         }
 	_, ok = node.Actions["cordon"]
@@ -378,6 +381,7 @@ func (client *Client) NodeCordonDrain(nodeId string, nodeDrainInput *managementC
 func (client *Client) NodeUncordon(nodeId string) (err error) {
 	var node *managementClient.Node
         if node, err = client.Management.Node.ByID(nodeId); err != nil {
+		err = fmt.Errorf("rancher.Node.ByID() error: %s", err)
     		return
         }
 	_, ok := node.Actions["uncordon"]
@@ -393,11 +397,31 @@ func (client *Client) NodeUncordon(nodeId string) (err error) {
 func (client *Client) DeleteNode(nodeId string) (err error) {
 	var node *managementClient.Node
         if node, err = client.Management.Node.ByID(nodeId); err != nil {
+		err = fmt.Errorf("rancher.Node.ByID() error: %s", err)
     		return
         }
         err = client.Management.Node.Delete(node)
 	if err != nil {
 		err = fmt.Errorf("rancher.DeleteNode() error: %s", err)
+	}
+	return
+}
+
+func (client *Client) NodeSetAnnotations(nodeId string, annotations map[string]string) (err error) {
+	var node *managementClient.Node
+	//var updates managementClient.Node
+        if node, err = client.Management.Node.ByID(nodeId); err != nil {
+		err = fmt.Errorf("rancher.Node.ByID() error: %s", err)
+    		return
+        }
+        //updates = managementClient.Node{Annotations: node.Annotations}
+        for key, elem := range annotations {
+		//updates.Annotations[key] = elem
+		node.Annotations[key] = elem
+        }
+        if _, err = client.Management.Node.Update(node, node); err != nil {
+        //if _, err = client.Management.Node.Update(node, updates); err != nil {
+		err = fmt.Errorf("rancher.NodeSetAnnotations() error: %s", err)
 	}
 	return
 }

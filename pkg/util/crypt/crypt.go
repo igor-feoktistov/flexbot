@@ -3,21 +3,20 @@ package crypt
 import (
 	"crypto/aes"
 	"crypto/cipher"
-	"crypto/md5"
+	"crypto/sha256"
 	"crypto/rand"
-	"encoding/hex"
 	"io"
 )
 
-func createHash(key string) string {
-	hasher := md5.New()
+func createHash(key string) []byte {
+	hasher := sha256.New()
 	hasher.Write([]byte(key))
-	return hex.EncodeToString(hasher.Sum(nil))
+	return hasher.Sum(nil)
 }
 
 func Encrypt(data []byte, passphrase string) (b []byte, err error) {
 	var block cipher.Block
-	if block, err = aes.NewCipher([]byte(createHash(passphrase))); err != nil {
+	if block, err = aes.NewCipher(createHash(passphrase)); err != nil {
 		return
 	}
 	var gcm cipher.AEAD
@@ -33,7 +32,7 @@ func Encrypt(data []byte, passphrase string) (b []byte, err error) {
 }
 
 func Decrypt(data []byte, passphrase string) (b []byte, err error) {
-	key := []byte(createHash(passphrase))
+	key := createHash(passphrase)
 	var block cipher.Block
 	if block, err = aes.NewCipher(key); err != nil {
 		return

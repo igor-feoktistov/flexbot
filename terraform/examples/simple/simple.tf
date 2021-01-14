@@ -1,9 +1,9 @@
 provider "flexbot" {
 
-  # Optional - password phrase to decrypt passwords in credentials (if encrypted).
-  # Machine ID is used by default
-  # Use 'flexbot --op=encryptString [--passphrase=<password phrase>]' CLI
-  # to generate encrypted passwords values
+  # Optional - password phrase to decrypt user names and passwords in credentials (if encrypted).
+  # Machine ID is used by default.
+  # Values for user and password in credentials can be encrypted.
+  # See "flexbot_crypt" datasource example on how to generate encrypted user / password values.
   pass_phrase = "secret"
 
   # Required - IPAM is implemented via pluggable providers.
@@ -60,9 +60,12 @@ provider "flexbot" {
     token_key = "token-xxx"
     insecure = true
     cluster_id = rancher2_cluster.cluster.id
-    # Optional - Grace timeout after each node update in changing
+    # Optional - Grace timeout in seconds after each node update in changing
     #            blade_spec or os_image/seed_template.
     node_grace_timeout = 60
+    # Optional - Wait timeout for node status "active". Assigned compute blade
+    #            specs will be recorded in node annotations if timeout > 0.
+    wait_for_node_timeout = 1800
     drain_input {
       force = true
       delete_local_data = true
@@ -106,6 +109,9 @@ resource "flexbot_server" "k8s-node1" {
       # Number of cores, supports range
       #num_of_cores = "36"
       #num_of_cores = "24-36"
+      # Number of threads, supports range
+      #num_of_threads = "72"
+      #num_of_threads = "48-72"
       # Total memory in MB, supports range
       total_memory = "65536-262144"
     }

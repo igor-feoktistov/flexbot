@@ -2,10 +2,32 @@ locals {
   output_path = var.output_path == "" ? "output" : var.output_path
 }
 
+provider "flexbot" {
+  alias = "crypt"
+  pass_phrase = var.pass_phrase
+}
+
+data "flexbot_crypt" "rancher_token_key" {
+  provider = flexbot.crypt
+  name = "rancher_token_key"
+  encrypted = var.rancher_config.token_key
+}
+
+data "flexbot_crypt" "aws_access_key_id" {
+  provider = flexbot.crypt
+  name = "aws_access_key_id"
+  encrypted = var.rancher_config.s3_backup.access_key_id
+}
+
+data "flexbot_crypt" "aws_secret_access_key" {
+  provider = flexbot.crypt
+  name = "aws_secret_access_key"
+  encrypted = var.rancher_config.s3_backup.secret_access_key
+}
 
 provider "rancher2" {
   api_url = var.rancher_config.api_url
-  token_key = var.token_key
+  token_key = data.flexbot_crypt.rancher_token_key.decrypted
   insecure = true
 }
 
@@ -25,7 +47,15 @@ resource "rancher2_cluster" "cluster" {
         backup_config {
           enabled = true
           interval_hours = 2
-          retention = 360
+          retention = 84
+          s3_backup_config {
+            region = var.rancher_config.s3_backup.region
+            endpoint = var.rancher_config.s3_backup.endpoint
+            access_key = data.flexbot_crypt.aws_access_key_id.decrypted
+            secret_key = data.flexbot_crypt.aws_secret_access_key.decrypted
+            bucket_name = var.rancher_config.s3_backup.bucket_name
+            folder = var.rancher_config.s3_backup.folder
+          }
         }
       }
       kube_api {
@@ -65,6 +95,7 @@ resource "rancher2_cluster" "cluster" {
 }
 
 provider "flexbot" {
+  alias = "server"
   pass_phrase = var.pass_phrase
   synchronized_updates = true
   ipam {
@@ -97,9 +128,11 @@ provider "flexbot" {
   rancher_api {
     enabled = true
     api_url = var.rancher_config.api_url
-    token_key = var.token_key
+    token_key = data.flexbot_crypt.rancher_token_key.decrypted
     insecure = true
     cluster_id = rancher2_cluster.cluster.id
+    wait_for_node_timeout = 1800
+    node_grace_timeout = 60
     drain_input {
       force = true
       delete_local_data = true
@@ -112,6 +145,7 @@ provider "flexbot" {
 
 # Master nodes
 resource "flexbot_server" "master" {
+  provider = flexbot.server
   for_each = var.nodes.masters
   # UCS compute
   compute {
@@ -119,11 +153,10 @@ resource "flexbot_server" "master" {
     sp_org = var.node_config.compute.sp_org
     sp_template = var.node_config.compute.sp_template
     blade_spec {
-      dn = each.value.blade_spec_dn
-      model = each.value.blade_spec_model
-      total_memory = each.value.blade_spec_total_memory
+      dn = each.value.blade_spec.dn
+      model = each.value.blade_spec.model
+      total_memory = each.value.blade_spec.total_memory
     }
-    powerstate = each.value.powerstate
     safe_removal = false
     wait_for_ssh_timeout = 1800
     ssh_user = var.node_config.compute.ssh_user
@@ -131,6 +164,7 @@ resource "flexbot_server" "master" {
     ssh_node_init_commands = [
       "sudo cloud-init status --wait || true",
       "curl ${data.rancher2_setting.docker_install_url.value} | sh",
+      "sudo systemctl enable docker",
       "${rancher2_cluster.cluster.cluster_registration_token[0].node_command} --etcd --controlplane",
     ]
     ssh_node_bootdisk_resize_commands = ["sudo /usr/sbin/growbootdisk"]
@@ -138,7 +172,7 @@ resource "flexbot_server" "master" {
   }
   # cDOT storage
   storage {
-    auto_snapshot_on_update = true
+    auto_snapshot_on_update = false
     boot_lun {
       os_image = each.value.os_image
       size = each.value.boot_lun_size
@@ -208,6 +242,7 @@ resource "flexbot_server" "master" {
 
 # Worker nodes
 resource "flexbot_server" "worker" {
+  provider = flexbot.server
   for_each = var.nodes.workers
   # UCS compute
   compute {
@@ -215,11 +250,10 @@ resource "flexbot_server" "worker" {
     sp_org = var.node_config.compute.sp_org
     sp_template = var.node_config.compute.sp_template
     blade_spec {
-      dn = each.value.blade_spec_dn
-      model = each.value.blade_spec_model
-      total_memory = each.value.blade_spec_total_memory
+      dn = each.value.blade_spec.dn
+      model = each.value.blade_spec.model
+      total_memory = each.value.blade_spec.total_memory
     }
-    powerstate = each.value.powerstate
     safe_removal = false
     wait_for_ssh_timeout = 1800
     ssh_user = var.node_config.compute.ssh_user

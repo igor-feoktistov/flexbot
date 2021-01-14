@@ -3,6 +3,24 @@ locals {
 }
 
 provider "flexbot" {
+  alias = "crypt"
+  pass_phrase = var.pass_phrase
+}
+
+data "flexbot_crypt" "aws_access_key_id" {
+  provider = flexbot.crypt
+  name = "aws_access_key_id"
+  encrypted = var.rke_config.s3_backup.access_key_id
+}
+
+data "flexbot_crypt" "aws_secret_access_key" {
+  provider = flexbot.crypt
+  name = "aws_secret_access_key"
+  encrypted = var.rke_config.s3_backup.secret_access_key
+}
+
+provider "flexbot" {
+  alias = "server"
   pass_phrase = var.pass_phrase
   synchronized_updates = true
   ipam {
@@ -36,6 +54,7 @@ provider "flexbot" {
 
 # RKE nodes
 resource "flexbot_server" "node" {
+  provider = flexbot.server
   for_each = var.nodes
   # UCS compute
   compute {
@@ -43,11 +62,10 @@ resource "flexbot_server" "node" {
     sp_org = var.node_config.compute.sp_org
     sp_template = var.node_config.compute.sp_template
     blade_spec {
-      dn = each.value.blade_spec_dn
-      model = each.value.blade_spec_model
-      total_memory = each.value.blade_spec_total_memory
+      dn = each.value.blade_spec.dn
+      model = each.value.blade_spec.model
+      total_memory = each.value.blade_spec.total_memory
     }
-    powerstate = each.value.powerstate
     safe_removal = false
     wait_for_ssh_timeout = 1800
     ssh_user = var.node_config.compute.ssh_user
@@ -61,7 +79,7 @@ resource "flexbot_server" "node" {
   }
   # cDOT storage
   storage {
-    auto_snapshot_on_update = false
+    auto_snapshot_on_update = true
     boot_lun {
       os_image = each.value.os_image
       size = each.value.boot_lun_size
@@ -135,7 +153,7 @@ resource rke_cluster "cluster" {
     for_each = [for instance in flexbot_server.node: {
       ip = instance.network[0].node[0].ip
       fqdn = instance.network[0].node[0].fqdn
-    }]
+    } if var.nodes[instance.compute[0].hostname].rke_member]
     content {
       address = nodes.value.ip
       hostname_override = nodes.value.fqdn
@@ -152,8 +170,16 @@ resource rke_cluster "cluster" {
     etcd {
       backup_config {
         enabled = true
-        interval_hours = 2
-        retention = 360
+        interval_hours = 1
+        retention = 168
+        s3_backup_config {
+          region = var.rke_config.s3_backup.region
+          endpoint = var.rke_config.s3_backup.endpoint
+          access_key = data.flexbot_crypt.aws_access_key_id.decrypted
+          secret_key = data.flexbot_crypt.aws_secret_access_key.decrypted
+          bucket_name = var.rke_config.s3_backup.bucket_name
+          folder = var.rke_config.s3_backup.folder
+        }
       }
     }
     kube_api {
@@ -169,7 +195,7 @@ resource rke_cluster "cluster" {
       cluster_domain = "cluster.local"
       cluster_dns_server = "172.20.0.10"
       extra_args = {
-        max-pods = "100"
+        max-pods = "128"
       }
     }
   }
@@ -188,7 +214,7 @@ resource rke_cluster "cluster" {
     max_unavailable_controlplane = "1"
     max_unavailable_worker = "1"
   }
-  addons_include = ["${var.rke_config.tls_secret_manifest}"]
+  addons_include = [var.rke_config.tls_secret_manifest]
 }
 
 resource "local_file" "kubeconfig" {

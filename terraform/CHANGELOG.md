@@ -1,3 +1,19 @@
+## 1.6.2 (January 14, 2021)
+
+FEATURES:
+* **New Parameter:** `wait_for_node_timeout` in `rancher_api` provider argument - (Optional) Ensures Rancher node is "active" before completing.
+* **New Parameter:** `num_of_threads` in `blade_spec` compute argument - (Optional) Blade search by range of `num_of_threads` or exact value.
+* **New Datasource:** `flexbot_crypt` to help with encrypting user names, passwords, and tokens.
+
+ENHANCEMENTS:
+* Record assigned compute details in node annotations (suffix flexpod-compute).
+* Record assigned storage details in node annotations (suffix flexpod-storage).
+* The above enhancements require `rancher_api` and `wait_for_node_timeout` > 0 in provider settings.
+* Package `crypt` is updated to replace md5 with sha256 sum. Make sure to re-generate encrypted strings in credentials.
+
+BUG FIXES:
+
+
 ## 1.6.1 (January 4, 2021)
 
 FEATURES:

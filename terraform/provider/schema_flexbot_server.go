@@ -109,6 +109,18 @@ func schemaFlexbotServer() map[string]*schema.Schema {
 										return
 									},
 								},
+								"num_of_threads": {
+									Type:     schema.TypeString,
+									Optional: true,
+									ValidateFunc: func(val interface{}, key string) (warns []string, errs []error) {
+										v := val.(string)
+										matched, _ := regexp.MatchString(`^[0-9-]+$`, v)
+										if !matched {
+											errs = append(errs, fmt.Errorf("value %q=%s must be either number or range", key, v))
+										}
+										return
+									},
+								},
 								"total_memory": {
 									Type:     schema.TypeString,
 									Optional: true,
@@ -149,6 +161,11 @@ func schemaFlexbotServer() map[string]*schema.Schema {
 									Computed: true,
 								},
 								"num_of_cores": {
+									Type:     schema.TypeString,
+									Optional: true,
+									Computed: true,
+								},
+								"num_of_threads": {
 									Type:     schema.TypeString,
 									Optional: true,
 									Computed: true,

@@ -1,47 +1,3 @@
-pass_phrase = "secret"
-
-nodes = {
-  node-k8s01 = {
-    #blade_spec_dn = "sys/chassis-4/blade-7"
-    blade_spec_dn = ""
-    blade_spec_model = "UCSB-B200-M5"
-    blade_spec_total_memory = "65536-262144"
-    powerstate = "up"
-    os_image = "ubuntu-18.04.05.02-iboot"
-    seed_template = "ubuntu-18.04.05.02-cloud-init.template"
-    boot_lun_size = 32
-    data_lun_size = 64
-    restore = {restore = false, snapshot_name = ""}
-    snapshots = []
-  }
-  node-k8s02 = {
-    #blade_spec_dn = "sys/chassis-5/blade-1"
-    blade_spec_dn = ""
-    blade_spec_model = "UCSB-B200-M5"
-    blade_spec_total_memory = "65536-262144"
-    powerstate = "up"
-    os_image = "ubuntu-18.04.05.02-iboot"
-    seed_template = "ubuntu-18.04.05.02-cloud-init.template"
-    boot_lun_size = 32
-    data_lun_size = 64
-    restore = {restore = false, snapshot_name = ""}
-    snapshots = []
-  }
-  node-k8s03 = {
-    #blade_spec_dn = "sys/chassis-6/blade-3"
-    blade_spec_dn = ""
-    blade_spec_model = "UCSB-B200-M5"
-    blade_spec_total_memory = "65536-262144"
-    powerstate = "up"
-    os_image = "ubuntu-18.04.05.02-iboot"
-    seed_template = "ubuntu-18.04.05.02-cloud-init.template"
-    boot_lun_size = 32
-    data_lun_size = 64
-    restore = {restore = false, snapshot_name = ""}
-    snapshots = []
-  }
-}
-
 flexbot_credentials = {
   infoblox = {
     host = "ib.example.com"
@@ -69,7 +25,7 @@ node_config = {
   }
   compute = {
     sp_org = "org-root/org-Kubernetes"
-    sp_template = "org-root/org-Kubernetes/ls-K8S-01-SPD-0"
+    sp_template = "org-root/org-Kubernetes/ls-K8S-01-PROD-01"
     ssh_user = "cloud-user"
     ssh_public_key_path = "~/.ssh/id_rsa.pub"
     ssh_private_key_path = "~/.ssh/id_rsa"
@@ -88,7 +44,7 @@ node_config = {
     iscsi_initiator = [
       {
         name = "iscsi0"
-        subnet = "192.168.2.0/24"
+        subnet = "192.168.3.0/24"
         gateway = ""
         dns_server1 = ""
         dns_server2 = ""
@@ -96,7 +52,7 @@ node_config = {
       },
       {
         name = "iscsi1"
-        subnet = "192.168.3.0/24"
+        subnet = "192.168.4.0/24"
         gateway = ""
         dns_server1 = ""
         dns_server2 = ""
@@ -110,15 +66,23 @@ node_config = {
 }
 
 rke_config = {
-  rke_version = "v1.19.3-rancher1-2"
+  rke_version = "v1.19.6-rancher1-1"
   docker_version = "19.03"
   tls_secret_manifest = "manifests/tls-rancher-ingress.yaml"
+  s3_backup = {
+    region = "us-east-1"
+    endpoint = "s3-accesspoint.us-east-1.amazonaws.com"
+    access_key_id = "base64:ZoNJRxrA/lm1Wme5W<...skip...>c9LMgwDgoYYT26fxzySnod9VjBQs"
+    secret_access_key = "base64:Gk3HYIMSdFP/k<...skip...>sFgBji3sS+ggQCcUfErFGlCJFiw="
+    bucket_name = "op-us-west-01-rms-backups"
+    folder = "rancher"
+  }
 }
 
 rancher_config = {
   rancher_helm_repo = "https://releases.rancher.com/server-charts/latest"
-  rancher_version = "2.5.2"
   rancher_server_url = "rancher.example.com"
+  rancher_version = "2.5.5"
 }
 
 output_path = "output"

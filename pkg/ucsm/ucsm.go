@@ -53,6 +53,7 @@ func AssignBlade(client *api.Client, nodeConfig *config.NodeConfig) (err error) 
             				Model: computeBlade.Model,
             				NumOfCpus: strconv.Itoa(computeBlade.NumOfCpus),
             				NumOfCores: strconv.Itoa(computeBlade.NumOfCores),
+            				NumOfThreads: strconv.Itoa(computeBlade.NumOfThreads),
             				TotalMemory: strconv.Itoa(computeBlade.TotalMemory),
             			}
 				var vnicsEther *[]mo.VnicEther
@@ -232,6 +233,7 @@ func DiscoverServer(nodeConfig *config.NodeConfig) (serverExists bool, err error
             	Model: computeBlade.Model,
             	NumOfCpus: strconv.Itoa(computeBlade.NumOfCpus),
             	NumOfCores: strconv.Itoa(computeBlade.NumOfCores),
+            	NumOfThreads: strconv.Itoa(computeBlade.NumOfThreads),
             	TotalMemory: strconv.Itoa(computeBlade.TotalMemory),
         }
 	var vnicsEther *[]mo.VnicEther

@@ -1,8 +1,10 @@
 variable "nodes" {
   type = map(object({
-    blade_spec_dn = string
-    blade_spec_model = string
-    blade_spec_total_memory = string
+    blade_spec = object({
+      dn = string
+      model = string
+      total_memory = string
+    })
     powerstate = string
     os_image = string
     seed_template = string
@@ -16,6 +18,7 @@ variable "nodes" {
       name = string
       fsfreeze = bool
     }))
+    rke_member = bool
   }))
 }
 
@@ -61,6 +64,14 @@ variable "rke_config" {
     rke_version = string
     docker_version = string
     tls_secret_manifest = string
+    s3_backup = object({
+      region = string
+      endpoint = string
+      access_key_id = string
+      secret_access_key = string
+      bucket_name = string
+      folder = string
+    })
   })
 }
 

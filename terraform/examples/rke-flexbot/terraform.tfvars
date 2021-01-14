@@ -1,5 +1,3 @@
-pass_phrase = "secret"
-
 nodes = {
   masters = {
     node-k8s01 = {

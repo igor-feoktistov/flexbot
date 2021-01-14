@@ -1,9 +1,11 @@
 variable "nodes" {
   type = object({
     masters = map(object({
-      blade_spec_dn = string
-      blade_spec_model = string
-      blade_spec_total_memory = string
+      blade_spec = object({
+        dn = string
+        model = string
+        total_memory = string
+      })
       powerstate = string
       os_image = string
       seed_template = string
@@ -19,10 +21,11 @@ variable "nodes" {
       }))
     }))
     workers = map(object({
-      blade_spec_dn = string
-      blade_spec_model = string
-      blade_spec_total_memory = string
-      powerstate = string
+      blade_spec = object({
+        dn = string
+        model = string
+        total_memory = string
+      })
       os_image = string
       seed_template = string
       boot_lun_size = number
@@ -40,11 +43,23 @@ variable "nodes" {
 }
 
 variable "flexbot_credentials" {
-  type = map(object({
-    host = string
-    user = string
-    password = string
-  }))
+  type = object({
+    infoblox = object({
+      host = string
+      user = string
+      password = string
+    })
+    ucsm = object({
+      host = string
+      user = string
+      password = string
+    })
+    cdot = object({
+      host = string
+      user = string
+      password = string
+    })
+  })
 }
 
 variable "node_config" {
@@ -79,16 +94,21 @@ variable "node_config" {
 variable "rancher_config" {
   type = object({
     api_url = string
+    token_key = string
     cluster_name = string
     kubernetes_version = string
+    s3_backup = object({
+      region = string
+      endpoint = string
+      access_key_id = string
+      secret_access_key = string
+      bucket_name = string
+      folder = string
+    })
   })
 }
 
 variable "pass_phrase" {
-  type = string
-}
-
-variable "token_key" {
   type = string
 }
 

@@ -4,6 +4,7 @@ import (
 	"sync"
 	
 	"flexbot/pkg/rancher"
+	"flexbot/pkg/config"
 	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
 	rancherManagementClient "github.com/rancher/rancher/pkg/client/generated/management/v3"
 )
@@ -20,7 +21,9 @@ type FlexbotConfig struct {
 	RancherConfig         *rancher.Config
 	RancherNodeDrainInput *rancherManagementClient.NodeDrainInput
 	NodeGraceTimeout      int
+	WaitForNodeTimeout    int
 	UpdateManager         UpdateManager
+	NodeConfig            map[string]*config.NodeConfig
 }
 
 func (c *FlexbotConfig) UpdateManagerAcquire() (error) {

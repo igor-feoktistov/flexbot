@@ -1,3 +1,17 @@
+## 1.6.2 (January 14, 2021)
+
+FEATURES:
+
+* Terraform provider v1.6.2
+* See Terraform CHANGELOG for more details.
+
+ENHANCEMENTS:
+* Package `crypt` is updated to replace md5 with sha256 sum.
+* Make sure to re-generate encrypted strings in credentials.
+
+BUG FIXES:
+
+
 ## 1.6.1 (January 4, 2021)
 
 FEATURES:

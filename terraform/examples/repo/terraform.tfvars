@@ -21,8 +21,6 @@ repo = {
   ]
 }
 
-pass_phrase = "secret"
-
 storage_credentials = {
   host = "vserver.example.com"
   user = "vsadmin"
