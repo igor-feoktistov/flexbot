@@ -1,3 +1,8 @@
+# DEPRECATED
+
+Flexpod CLI tool is deprecated in favor of [terraform-provider-flexbot](https://github.com/igor-feoktistov/terraform-provider-flexbot).
+See [flexbot terraform provider](https://registry.terraform.io/providers/igor-feoktistov/flexbot/latest) for details.
+
 # Flexbot is a tool to build bare-metal Linux on [FlexPod](https://flexpod.com) (Cisco UCS and NetApp cDOT)
 
 Compared to other bare-metal tools it does not require any additional infrastructure like PXE/DHCP servers.

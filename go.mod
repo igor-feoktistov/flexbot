@@ -44,13 +44,11 @@ require (
 	github.com/sirupsen/logrus v1.7.0 // indirect
 	github.com/spf13/afero v1.5.1 // indirect
 	github.com/ulikunitz/xz v0.5.9 // indirect
-	github.com/vmihailenco/msgpack v4.0.4+incompatible // indirect
 	github.com/vmihailenco/tagparser v0.1.2 // indirect
 	github.com/vmware/go-nfs-client v0.0.0-20190605212624-d43b92724c1b // indirect
 	github.com/zclconf/go-cty v1.7.1 // indirect
 	github.com/zclconf/go-cty-yaml v1.0.2 // indirect
 	golang.org/x/crypto v0.0.0-20201221181555-eec23a3978ad
-	golang.org/x/net v0.0.0-20201224014010-6772e930b67b // indirect
 	golang.org/x/oauth2 v0.0.0-20210112200429-01de73cf58bd // indirect
 	golang.org/x/sys v0.0.0-20210112091331-59c308dcf3cc // indirect
 	golang.org/x/text v0.3.5 // indirect
