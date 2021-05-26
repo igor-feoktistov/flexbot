@@ -1,7 +1,7 @@
 # DEPRECATED
 
-Flexpod CLI tool is deprecated in favor of [terraform-provider-flexbot](https://github.com/igor-feoktistov/terraform-provider-flexbot).
-See [flexbot terraform provider](https://registry.terraform.io/providers/igor-feoktistov/flexbot/latest) for details.
+Flexpod project is deprecated in favor of [terraform-provider-flexbot](https://github.com/igor-feoktistov/terraform-provider-flexbot).
+See [flexbot](https://github.com/igor-feoktistov/terraform-provider-flexbot/tools/flexbot-cli) CLI for details.
 
 # Flexbot is a tool to build bare-metal Linux on [FlexPod](https://flexpod.com) (Cisco UCS and NetApp cDOT)
 
